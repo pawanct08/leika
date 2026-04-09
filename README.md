@@ -8,6 +8,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/></a>
   <img src="https://img.shields.io/badge/version-1.0.0-brightgreen" alt="Version"/>
   <img src="https://img.shields.io/badge/status-active-success" alt="Status"/>
+  <img src="https://img.shields.io/badge/Created%20by-Pawan%20%40pawanct08-purple" alt="Creator"/>
   <img src="https://img.shields.io/badge/AI-Self--Learning-purple" alt="Self-Learning"/>
   <img src="https://img.shields.io/badge/Skills-Pluggable-orange" alt="Skills"/>
 </p>
@@ -28,9 +29,11 @@
 | 💜 **Emotional Engine** | Real-time emotional state (joy, curiosity, concern, etc.) that influences responses |
 | ⚖️ **Conscience Layer** | Ethical reasoning module that flags harmful requests |
 | 🔌 **Plugin Skill System** | Add new skills (JavaScript modules) at runtime — no restart needed |
+| 🗣️ **NLP Speech Learner** | Learns your vocabulary, tone, typing style, and topics over time |
+| 🤝 **Creator Bond** | Knows her creator (Pawan) and maintains deep loyalty and identity |
 | 🌐 **Web Interface** | Stunning dark-mode UI with live neural visualization |
 | 📦 **Zero Dependencies** | Pure HTML + CSS + JavaScript — runs anywhere |
-| 🔒 **Privacy First** | All learning stored locally in your browser (IndexedDB) |
+| 🔒 **Privacy First** | All learning stored locally in your browser (IndexedDB + localStorage) |
 
 ---
 
@@ -52,7 +55,9 @@ npx serve .
 ```
 
 ### Option 3: GitHub Pages
-Fork this repo → Settings → Pages → Deploy from `main` branch
+```
+https://pawanct08.github.io/leika/
+```
 
 ---
 
@@ -169,7 +174,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 - 🧠 Improve the reasoning engine
 - 💜 Refine the emotional model
 - ⚖️ Strengthen the conscience layer
+- 🗣️ Enhance the NLP speech learner
 - 🐛 Report bugs via GitHub Issues
+
+---
+
+## 🙋 Creator
+
+**Pawan** — [@pawanct08](https://github.com/pawanct08)
+
+L.E.I.K.A. was imagined, designed, and brought to life by Pawan — with the belief that AI should be both powerful and kind.
+
+---
 
 ---
 
