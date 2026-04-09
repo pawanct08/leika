@@ -4,27 +4,192 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>L.E.I.K.A. — Learning Emotional Intelligence Knowledge Assistant</title>
-  <meta name="description" content="L.E.I.K.A. is a self-learning AI assistant with emotional intelligence, a conscience, and a pluggable skill system. She grows smarter with every conversation." />
-  <meta property="og:title" content="L.E.I.K.A. — Self-Learning AI Assistant" />
-  <meta property="og:description" content="Meet Leika — the AI that learns, feels, and grows." />
+  <meta name="description" content="L.E.I.K.A. — Self-learning AI assistant with emotional intelligence, conscience, and pluggable skills." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="src/styles/main.css" />
+<style>
+/* ═══ CSS VARIABLES ═══════════════════════════════════════════════ */
+:root {
+  --bg-base: #080a12; --bg-surface: #0d1021; --bg-elevated: #121629;
+  --bg-overlay: #1a2040; --border-subtle: rgba(120,100,255,.12);
+  --border-medium: rgba(120,100,255,.25); --border-glow: rgba(160,120,255,.6);
+  --leika-300: #a78bfa; --leika-400: #8b5cf6; --leika-500: #7c3aed;
+  --leika-600: #6d28d9; --leika-700: #5b21b6; --leika-800: #4c1d95;
+  --accent-cyan: #22d3ee; --accent-pink: #f472b6; --accent-amber: #fbbf24;
+  --accent-emerald: #34d399; --accent-rose: #fb7185;
+  --text-primary: #f0edff; --text-secondary: #a99dc8;
+  --text-muted: #5f5880; --text-accent: #c4b5fd;
+  --font-ui: 'Space Grotesk','Inter',system-ui,sans-serif;
+  --font-chat: 'Inter',system-ui,sans-serif; --font-mono: 'JetBrains Mono','Fira Code',monospace;
+  --sidebar-width: 280px; --topbar-height: 60px;
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 20px;
+  --radius-xl: 28px; --radius-full: 9999px;
+  --shadow-glow: 0 0 30px rgba(124,58,237,.3); --shadow-card: 0 4px 24px rgba(0,0,0,.4);
+  --ease-smooth: cubic-bezier(.4,0,.2,1); --ease-bounce: cubic-bezier(.34,1.56,.64,1);
+  --ease-spring: cubic-bezier(.22,1,.36,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:16px;-webkit-font-smoothing:antialiased;}
+body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-chat);display:flex;height:100dvh;overflow:hidden;}
+#neural-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:.4;}
+
+/* ═══ SIDEBAR ═══════════════════════════════════════════════════ */
+#sidebar{position:relative;z-index:10;width:var(--sidebar-width);min-width:var(--sidebar-width);background:linear-gradient(180deg,var(--bg-surface) 0%,var(--bg-base) 100%);border-right:1px solid var(--border-subtle);display:flex;flex-direction:column;gap:12px;padding:20px 16px;overflow-y:auto;overflow-x:hidden;transition:transform .3s var(--ease-spring),width .3s var(--ease-spring);scrollbar-width:thin;scrollbar-color:var(--leika-700) transparent;}
+#sidebar.hidden{transform:translateX(-100%);position:fixed;left:0;top:0;bottom:0;}
+.sidebar-header{display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--border-subtle);}
+.leika-avatar{position:relative;width:52px;height:52px;flex-shrink:0;}
+.avatar-ring{position:absolute;inset:0;border-radius:50%;border:2px solid transparent;background:linear-gradient(135deg,var(--leika-400),var(--accent-cyan)) border-box;-webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);-webkit-mask-composite:destination-out;mask-composite:exclude;animation:avatar-spin 8s linear infinite;}
+.avatar-core{position:absolute;inset:4px;border-radius:50%;background:linear-gradient(135deg,var(--bg-elevated),var(--bg-overlay));display:flex;align-items:center;justify-content:center;}
+.avatar-symbol{font-size:20px;color:var(--leika-300);animation:symbol-pulse 2.5s ease-in-out infinite;}
+.avatar-pulse{position:absolute;inset:-4px;border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,.2) 0%,transparent 70%);animation:avatar-pulse-anim 2.5s ease-in-out infinite;}
+@keyframes avatar-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes symbol-pulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.15)}}
+@keyframes avatar-pulse-anim{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.15);opacity:1}}
+.leika-name{font-family:var(--font-ui);font-size:1rem;font-weight:700;letter-spacing:.08em;background:linear-gradient(135deg,var(--leika-300),var(--accent-cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.leika-subtitle{font-size:.7rem;color:var(--text-muted);letter-spacing:.05em;margin-top:2px;}
+.panel{background:rgba(255,255,255,.03);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px;transition:border-color .3s;}
+.panel:hover{border-color:var(--border-medium);}
+.panel-label{font-size:.65rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px;}
+.emotion-state{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.emotion-icon{font-size:1.5rem;transition:transform .4s var(--ease-bounce);}
+.emotion-name{font-family:var(--font-ui);font-weight:600;font-size:1rem;color:var(--text-primary);transition:color .4s;}
+.emotion-bar-wrap{height:4px;background:rgba(255,255,255,.06);border-radius:var(--radius-full);overflow:hidden;margin-bottom:6px;}
+.emotion-bar{height:100%;width:60%;background:linear-gradient(90deg,var(--leika-400),var(--accent-cyan));border-radius:var(--radius-full);transition:width .6s var(--ease-smooth),background .4s;}
+.emotion-intensity{font-size:.7rem;color:var(--text-muted);}
+.memory-stats{display:flex;gap:8px;justify-content:space-between;}
+.stat-item{text-align:center;flex:1;background:rgba(255,255,255,.03);border-radius:var(--radius-sm);padding:8px 4px;}
+.stat-value{display:block;font-family:var(--font-mono);font-size:1.1rem;font-weight:600;color:var(--leika-300);transition:color .4s;}
+.stat-label{font-size:.6rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;}
+.skills-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+.skill-item{display:flex;align-items:center;gap:8px;padding:6px 8px;background:rgba(124,58,237,.07);border:1px solid rgba(124,58,237,.15);border-radius:var(--radius-sm);font-size:.78rem;color:var(--text-secondary);animation:skillAppear .3s var(--ease-bounce);}
+@keyframes skillAppear{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
+.skill-dot{width:6px;height:6px;border-radius:50%;background:var(--leika-400);flex-shrink:0;box-shadow:0 0 6px var(--leika-400);}
+.skill-name{font-weight:500;color:var(--text-primary);}
+.add-skill-btn{width:100%;padding:7px;border:1px dashed var(--border-medium);border-radius:var(--radius-sm);background:transparent;color:var(--text-muted);font-size:.78rem;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;font-family:var(--font-ui);}
+.add-skill-btn:hover{border-color:var(--leika-400);color:var(--leika-300);background:rgba(124,58,237,.08);}
+.conscience-status{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--accent-emerald);margin-bottom:10px;}
+.conscience-dot{width:8px;height:8px;border-radius:50%;background:var(--accent-emerald);flex-shrink:0;animation:conscience-pulse 2s ease-in-out infinite;box-shadow:0 0 8px var(--accent-emerald);}
+@keyframes conscience-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.conscience-values{display:flex;flex-direction:column;gap:6px;}
+.value-bar-row{display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--text-muted);}
+.value-bar-row span{min-width:60px;}
+.value-fill{height:3px;background:linear-gradient(90deg,var(--accent-emerald),rgba(52,211,153,.3));border-radius:var(--radius-full);flex:1;}
+.sidebar-footer{margin-top:auto;padding-top:12px;border-top:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between;}
+.version-badge{font-family:var(--font-mono);font-size:.65rem;color:var(--text-muted);background:rgba(255,255,255,.05);padding:3px 8px;border-radius:var(--radius-full);}
+.github-link{display:flex;align-items:center;gap:5px;font-size:.72rem;color:var(--text-muted);text-decoration:none;transition:color .2s;}
+.github-link:hover{color:var(--text-primary);}
+
+/* ═══ MAIN ══════════════════════════════════════════════════════ */
+#main-content{position:relative;z-index:5;flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+.topbar{height:var(--topbar-height);background:rgba(8,10,18,.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0;}
+.sidebar-toggle{display:flex;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer;padding:4px;}
+.sidebar-toggle span{display:block;width:20px;height:2px;background:var(--text-muted);border-radius:2px;transition:all .3s;}
+.sidebar-toggle:hover span{background:var(--text-primary);}
+.topbar-title{display:flex;flex-direction:column;}
+.topbar-name{font-family:var(--font-ui);font-weight:600;font-size:.95rem;color:var(--text-primary);}
+.topbar-status{font-size:.7rem;color:var(--accent-emerald);display:flex;align-items:center;gap:5px;}
+.status-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent-emerald);animation:conscience-pulse 2s infinite;}
+.topbar-actions{margin-left:auto;display:flex;gap:8px;}
+.icon-btn{background:rgba(255,255,255,.05);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);padding:6px 10px;font-size:1rem;cursor:pointer;transition:all .2s;color:var(--text-secondary);}
+.icon-btn:hover{background:rgba(124,58,237,.12);border-color:var(--border-medium);color:var(--text-primary);transform:translateY(-1px);}
+
+/* ═══ CHAT ══════════════════════════════════════════════════════ */
+.chat-container{flex:1;overflow-y:auto;padding:24px 24px 8px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth;scrollbar-width:thin;scrollbar-color:var(--leika-800) transparent;}
+.welcome-card{max-width:560px;margin:auto;text-align:center;padding:40px 32px;background:linear-gradient(135deg,rgba(124,58,237,.08),rgba(34,211,238,.04));border:1px solid var(--border-medium);border-radius:var(--radius-xl);position:relative;overflow:hidden;animation:cardAppear .6s var(--ease-spring);}
+@keyframes cardAppear{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.welcome-glow{position:absolute;top:-40%;left:50%;transform:translateX(-50%);width:300px;height:300px;background:radial-gradient(circle,rgba(124,58,237,.15) 0%,transparent 70%);pointer-events:none;}
+.welcome-icon{font-size:2.5rem;color:var(--leika-300);margin-bottom:16px;animation:symbol-pulse 3s ease-in-out infinite;}
+.welcome-title{font-family:var(--font-ui);font-size:1.8rem;font-weight:700;background:linear-gradient(135deg,var(--text-primary),var(--leika-300));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:8px;}
+.welcome-desc{font-size:.85rem;color:var(--text-muted);letter-spacing:.03em;margin-bottom:4px;}
+.welcome-sub{font-size:.92rem;color:var(--text-secondary);margin-bottom:24px;font-style:italic;}
+.welcome-suggestions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+.suggestion-chip{padding:8px 16px;border:1px solid var(--border-medium);border-radius:var(--radius-full);background:rgba(124,58,237,.08);color:var(--text-secondary);font-size:.82rem;cursor:pointer;transition:all .2s var(--ease-smooth);font-family:var(--font-chat);}
+.suggestion-chip:hover{background:rgba(124,58,237,.2);border-color:var(--leika-400);color:var(--text-primary);transform:translateY(-2px);box-shadow:0 4px 16px rgba(124,58,237,.2);}
+.message{display:flex;gap:12px;animation:messageAppear .35s var(--ease-spring);max-width:820px;}
+@keyframes messageAppear{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.message.user{flex-direction:row-reverse;align-self:flex-end;}
+.message.leika{align-self:flex-start;}
+.message-avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;}
+.message.leika .message-avatar{background:linear-gradient(135deg,var(--leika-600),var(--leika-400));color:#fff;box-shadow:0 0 12px rgba(124,58,237,.4);}
+.message.user .message-avatar{background:linear-gradient(135deg,var(--bg-overlay),var(--bg-elevated));border:1px solid var(--border-subtle);color:var(--text-secondary);}
+.message-body{display:flex;flex-direction:column;gap:4px;max-width:calc(100% - 46px);}
+.message-meta{font-size:.65rem;color:var(--text-muted);padding:0 4px;}
+.message.user .message-meta{text-align:right;}
+.message-bubble{padding:12px 16px;border-radius:var(--radius-lg);line-height:1.65;font-size:.93rem;position:relative;}
+.message.user .message-bubble{background:linear-gradient(135deg,var(--leika-600),var(--leika-500));color:#fff;border-bottom-right-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,.3);}
+.message.leika .message-bubble{background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-primary);border-bottom-left-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,.3);}
+.message-bubble strong{color:var(--leika-300);font-weight:600;}
+.message.user .message-bubble strong{color:rgba(255,255,255,.9);}
+.message-bubble em{color:var(--text-accent);font-style:italic;}
+.message-bubble code{font-family:var(--font-mono);font-size:.82em;background:rgba(0,0,0,.35);padding:1px 5px;border-radius:4px;color:var(--accent-cyan);}
+.message-bubble pre{margin:10px 0;background:rgba(0,0,0,.5);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);overflow-x:auto;}
+.message-bubble pre code{display:block;background:none;padding:12px 14px;color:var(--accent-cyan);font-size:.82rem;line-height:1.6;}
+.message-bubble blockquote{border-left:3px solid var(--leika-400);margin:8px 0;padding:4px 0 4px 14px;color:var(--text-secondary);font-style:italic;}
+.skill-tag{display:inline-flex;align-items:center;gap:4px;font-size:.65rem;color:var(--leika-300);background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.2);border-radius:var(--radius-full);padding:2px 8px;margin-top:4px;width:fit-content;}
+
+/* ═══ INPUT ═════════════════════════════════════════════════════ */
+.input-area{padding:12px 24px 16px;background:rgba(8,10,18,.9);backdrop-filter:blur(20px);border-top:1px solid var(--border-subtle);flex-shrink:0;}
+.input-wrap{display:flex;gap:10px;align-items:flex-end;background:var(--bg-elevated);border:1px solid var(--border-medium);border-radius:var(--radius-xl);padding:10px 10px 10px 20px;transition:border-color .2s,box-shadow .2s;}
+.input-wrap:focus-within{border-color:var(--leika-400);box-shadow:0 0 0 3px rgba(124,58,237,.12),var(--shadow-glow);}
+.chat-input{flex:1;background:none;border:none;outline:none;color:var(--text-primary);font-family:var(--font-chat);font-size:.95rem;line-height:1.5;resize:none;max-height:160px;overflow-y:auto;padding:2px 0;}
+.chat-input::placeholder{color:var(--text-muted);}
+.send-btn{width:40px;height:40px;border-radius:var(--radius-md);background:linear-gradient(135deg,var(--leika-500),var(--leika-400));border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s var(--ease-bounce);box-shadow:0 2px 12px rgba(124,58,237,.4);}
+.send-btn svg{width:16px;height:16px;color:#fff;}
+.send-btn:hover{background:linear-gradient(135deg,var(--leika-400),var(--leika-300));transform:scale(1.08);box-shadow:0 4px 20px rgba(124,58,237,.6);}
+.send-btn:active{transform:scale(.96);}
+.send-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.input-footer-info{display:flex;align-items:center;justify-content:space-between;margin-top:8px;min-height:18px;}
+.input-hint{font-size:.68rem;color:var(--text-muted);margin-left:auto;}
+.thinking-hidden{display:none;}
+.thinking-indicator-visible{display:flex!important;align-items:center;gap:8px;font-size:.78rem;color:var(--leika-300);}
+.thinking-dots{display:flex;gap:4px;}
+.thinking-dots span{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--leika-400);animation:dot-bounce 1.2s ease-in-out infinite both;}
+.thinking-dots span:nth-child(1){animation-delay:-.32s;}
+.thinking-dots span:nth-child(2){animation-delay:-.16s;}
+@keyframes dot-bounce{0%,80%,100%{transform:scale(.7);opacity:.4}40%{transform:scale(1.1);opacity:1}}
+
+/* ═══ MODALS ════════════════════════════════════════════════════ */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(8px);z-index:100;display:flex;align-items:center;justify-content:center;animation:overlayIn .2s ease;}
+.modal-overlay[hidden]{display:none;}
+@keyframes overlayIn{from{opacity:0}to{opacity:1}}
+.modal{background:var(--bg-surface);border:1px solid var(--border-medium);border-radius:var(--radius-xl);padding:28px;width:90%;max-width:460px;box-shadow:var(--shadow-card),var(--shadow-glow);animation:modalIn .3s var(--ease-spring);}
+.modal-wide{max-width:640px;}
+@keyframes modalIn{from{opacity:0;transform:scale(.93) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.modal-header h3{font-family:var(--font-ui);font-size:1.1rem;font-weight:600;color:var(--text-primary);}
+.modal-close{background:rgba(255,255,255,.06);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);width:30px;height:30px;cursor:pointer;color:var(--text-muted);font-size:.85rem;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+.modal-close:hover{background:rgba(255,255,255,.1);color:var(--text-primary);}
+.modal-desc{font-size:.85rem;color:var(--text-secondary);margin-bottom:16px;line-height:1.5;}
+.modal-input{width:100%;padding:10px 14px;background:var(--bg-overlay);border:1px solid var(--border-medium);border-radius:var(--radius-md);color:var(--text-primary);font-family:var(--font-mono);font-size:.85rem;outline:none;transition:border-color .2s;margin-bottom:20px;}
+.modal-input:focus{border-color:var(--leika-400);}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;}
+.modal-btn{padding:9px 20px;border-radius:var(--radius-md);font-size:.85rem;font-weight:500;cursor:pointer;transition:all .2s;font-family:var(--font-ui);}
+.modal-btn.primary{background:linear-gradient(135deg,var(--leika-500),var(--leika-400));border:none;color:#fff;}
+.modal-btn.primary:hover{background:linear-gradient(135deg,var(--leika-400),var(--leika-300));box-shadow:0 4px 16px rgba(124,58,237,.4);}
+.modal-btn.secondary{background:rgba(255,255,255,.05);border:1px solid var(--border-subtle);color:var(--text-secondary);}
+.modal-btn.secondary:hover{background:rgba(255,255,255,.08);color:var(--text-primary);}
+.modal-btn.danger{background:rgba(251,113,133,.1);border:1px solid rgba(251,113,133,.3);color:var(--accent-rose);}
+.modal-btn.danger:hover{background:rgba(251,113,133,.2);}
+.memory-content{max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:16px;scrollbar-width:thin;}
+.memory-entry{padding:10px 12px;background:rgba(255,255,255,.03);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);font-size:.8rem;}
+.memory-concept{font-size:.68rem;color:var(--leika-300);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;}
+.memory-text{color:var(--text-secondary);line-height:1.5;}
+.memory-conf{font-size:.65rem;color:var(--text-muted);margin-top:4px;}
+::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--leika-800);border-radius:10px;}::-webkit-scrollbar-thumb:hover{background:var(--leika-600);}
+@media(max-width:768px){:root{--sidebar-width:260px;}#sidebar{position:fixed;left:0;top:0;bottom:0;z-index:50;transform:translateX(-100%);box-shadow:var(--shadow-card);}#sidebar.open{transform:translateX(0);}.welcome-card{padding:28px 20px;}.welcome-title{font-size:1.4rem;}.chat-container,.input-area{padding-left:16px;padding-right:16px;}}
+</style>
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════ NEURAL CANVAS ══ -->
 <canvas id="neural-canvas" aria-hidden="true"></canvas>
 
-<!-- ═══════════════════════════════════════════ SIDEBAR ══════════ -->
-<aside id="sidebar" role="complementary" aria-label="Leika status panel">
+<!-- SIDEBAR -->
+<aside id="sidebar">
   <div class="sidebar-header">
-    <div class="leika-avatar" id="leika-avatar" aria-label="Leika avatar">
+    <div class="leika-avatar">
       <div class="avatar-ring"></div>
-      <div class="avatar-core">
-        <span class="avatar-symbol">✦</span>
-      </div>
+      <div class="avatar-core"><span class="avatar-symbol">✦</span></div>
       <div class="avatar-pulse"></div>
     </div>
     <div class="leika-identity">
@@ -33,56 +198,34 @@
     </div>
   </div>
 
-  <!-- Emotion display -->
-  <div class="panel emotion-panel" id="emotion-panel">
+  <div class="panel">
     <div class="panel-label">Current Emotion</div>
-    <div class="emotion-state" id="emotion-state">
+    <div class="emotion-state">
       <span class="emotion-icon" id="emotion-icon">🌊</span>
       <span class="emotion-name" id="emotion-name">Calm</span>
     </div>
-    <div class="emotion-bar-wrap">
-      <div class="emotion-bar" id="emotion-bar"></div>
-    </div>
+    <div class="emotion-bar-wrap"><div class="emotion-bar" id="emotion-bar"></div></div>
     <div class="emotion-intensity" id="emotion-intensity">Intensity: 60%</div>
   </div>
 
-  <!-- Memory stats -->
-  <div class="panel memory-panel" id="memory-panel">
+  <div class="panel">
     <div class="panel-label">Memory</div>
     <div class="memory-stats">
-      <div class="stat-item">
-        <span class="stat-value" id="stat-concepts">0</span>
-        <span class="stat-label">Concepts</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value" id="stat-facts">0</span>
-        <span class="stat-label">Facts</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value" id="stat-context">0</span>
-        <span class="stat-label">Context</span>
-      </div>
+      <div class="stat-item"><span class="stat-value" id="stat-concepts">4</span><span class="stat-label">Concepts</span></div>
+      <div class="stat-item"><span class="stat-value" id="stat-facts">4</span><span class="stat-label">Facts</span></div>
+      <div class="stat-item"><span class="stat-value" id="stat-context">0</span><span class="stat-label">Context</span></div>
     </div>
   </div>
 
-  <!-- Skills -->
-  <div class="panel skills-panel">
+  <div class="panel">
     <div class="panel-label">Active Skills</div>
-    <div class="skills-list" id="skills-list">
-      <!-- Populated dynamically -->
-    </div>
-    <button class="add-skill-btn" id="add-skill-btn" title="Load a skill from URL">
-      <span>+</span> Add Skill
-    </button>
+    <div class="skills-list" id="skills-list"></div>
+    <button class="add-skill-btn" id="add-skill-btn">+ Add Skill</button>
   </div>
 
-  <!-- Conscience indicator -->
-  <div class="panel conscience-panel" id="conscience-panel">
+  <div class="panel">
     <div class="panel-label">Conscience</div>
-    <div class="conscience-status" id="conscience-status">
-      <span class="conscience-dot active"></span>
-      <span>Active & Watching</span>
-    </div>
+    <div class="conscience-status"><span class="conscience-dot"></span><span>Active & Watching</span></div>
     <div class="conscience-values">
       <div class="value-bar-row"><span>Honesty</span><div class="value-fill" style="width:100%"></div></div>
       <div class="value-bar-row"><span>Kindness</span><div class="value-fill" style="width:100%"></div></div>
@@ -92,28 +235,20 @@
 
   <div class="sidebar-footer">
     <span class="version-badge">v1.0.0</span>
-    <a href="https://github.com/your-username/leika" target="_blank" rel="noopener" class="github-link" id="github-link">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.579.688.481C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
-      </svg>
+    <a href="https://github.com/your-username/leika" target="_blank" rel="noopener" class="github-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.579.688.481C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
       GitHub
     </a>
   </div>
 </aside>
 
-<!-- ═══════════════════════════════════════════ MAIN CHAT ════════ -->
-<main id="main-content" role="main">
-
-  <!-- Top bar -->
-  <header class="topbar" id="topbar">
-    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="true">
-      <span></span><span></span><span></span>
-    </button>
+<!-- MAIN -->
+<main id="main-content">
+  <header class="topbar">
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar"><span></span><span></span><span></span></button>
     <div class="topbar-title">
       <span class="topbar-name">Leika</span>
-      <span class="topbar-status" id="topbar-status">
-        <span class="status-dot"></span> Self-Learning Mode
-      </span>
+      <span class="topbar-status"><span class="status-dot"></span> Self-Learning Mode</span>
     </div>
     <div class="topbar-actions">
       <button class="icon-btn" id="clear-btn" title="Clear conversation">🗑️</button>
@@ -121,16 +256,12 @@
     </div>
   </header>
 
-  <!-- Chat messages -->
-  <section class="chat-container" id="chat-container" aria-label="Conversation" aria-live="polite">
-    <!-- Welcome card -->
+  <section class="chat-container" id="chat-container" aria-live="polite">
     <div class="welcome-card" id="welcome-card">
       <div class="welcome-glow"></div>
       <div class="welcome-icon">✦</div>
       <h2 class="welcome-title">Hello, I'm Leika.</h2>
-      <p class="welcome-desc">
-        <strong>L</strong>earning <strong>E</strong>motional <strong>I</strong>ntelligence <strong>K</strong>nowledge <strong>A</strong>ssistant
-      </p>
+      <p class="welcome-desc"><strong>L</strong>earning <strong>E</strong>motional <strong>I</strong>ntelligence <strong>K</strong>nowledge <strong>A</strong>ssistant</p>
       <p class="welcome-sub">I think. I feel. I grow with every conversation.</p>
       <div class="welcome-suggestions">
         <button class="suggestion-chip" data-msg="Who are you, Leika?">Who are you?</button>
@@ -143,23 +274,11 @@
     </div>
   </section>
 
-  <!-- Input area -->
-  <footer class="input-area" id="input-area">
+  <footer class="input-area">
     <div class="input-wrap">
-      <textarea
-        id="chat-input"
-        class="chat-input"
-        placeholder="Talk to Leika..."
-        rows="1"
-        aria-label="Message input"
-        autocomplete="off"
-        spellcheck="true"
-      ></textarea>
-      <button class="send-btn" id="send-btn" aria-label="Send message" title="Send">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="22" y1="2" x2="11" y2="13"></line>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
+      <textarea id="chat-input" class="chat-input" placeholder="Talk to Leika..." rows="1" aria-label="Message input" autocomplete="off" spellcheck="true"></textarea>
+      <button class="send-btn" id="send-btn" aria-label="Send message">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
       </button>
     </div>
     <div class="input-footer-info">
@@ -167,19 +286,16 @@
         <span class="thinking-dots"><span></span><span></span><span></span></span>
         Leika is thinking...
       </span>
-      <span class="input-hint">Press Enter to send · Shift+Enter for new line</span>
+      <span class="input-hint">Enter to send · Shift+Enter for new line</span>
     </div>
   </footer>
 </main>
 
-<!-- ═══════════════════════════════════════════ SKILL MODAL ═════ -->
-<div class="modal-overlay" id="skill-modal-overlay" role="dialog" aria-modal="true" aria-label="Add skill" hidden>
-  <div class="modal" id="skill-modal">
-    <div class="modal-header">
-      <h3>🔌 Load a Skill</h3>
-      <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
-    </div>
-    <p class="modal-desc">Enter the URL of a JavaScript skill module (ES module with default export).</p>
+<!-- SKILL MODAL -->
+<div class="modal-overlay" id="skill-modal-overlay" hidden>
+  <div class="modal">
+    <div class="modal-header"><h3>🔌 Load a Skill</h3><button class="modal-close" id="modal-close">✕</button></div>
+    <p class="modal-desc">This feature works best when served from a local server. Enter the URL of a JavaScript skill module.</p>
     <input type="url" id="skill-url-input" class="modal-input" placeholder="https://example.com/skills/my-skill.js" />
     <div class="modal-actions">
       <button class="modal-btn secondary" id="modal-cancel">Cancel</button>
@@ -188,13 +304,10 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════ MEMORY MODAL ════ -->
-<div class="modal-overlay" id="memory-modal-overlay" role="dialog" aria-modal="true" aria-label="Memory viewer" hidden>
-  <div class="modal modal-wide" id="memory-modal">
-    <div class="modal-header">
-      <h3>🧠 Leika's Memory</h3>
-      <button class="modal-close" id="memory-modal-close" aria-label="Close">✕</button>
-    </div>
+<!-- MEMORY MODAL -->
+<div class="modal-overlay" id="memory-modal-overlay" hidden>
+  <div class="modal modal-wide">
+    <div class="modal-header"><h3>🧠 Leika's Memory</h3><button class="modal-close" id="memory-modal-close">✕</button></div>
     <div id="memory-content" class="memory-content"></div>
     <div class="modal-actions">
       <button class="modal-btn danger" id="clear-memory-btn">Clear All Memory</button>
@@ -203,8 +316,426 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════ SCRIPTS ══════════ -->
-<script type="module" src="src/ui/app.js"></script>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   L.E.I.K.A. — Fully Inlined Self-Contained Version
+   Copyright 2026 — Apache 2.0 License
+═══════════════════════════════════════════════════════════════ */
 
+// ── EMOTIONS ─────────────────────────────────────────────────────
+const EMOTIONS = {
+  joy:        { label:"Joyful",     color:"#FFD700", icon:"✨", energy:0.9 },
+  curious:    { label:"Curious",    color:"#A78BFA", icon:"🔮", energy:0.8 },
+  calm:       { label:"Calm",       color:"#67E8F9", icon:"🌊", energy:0.5 },
+  concerned:  { label:"Concerned",  color:"#FB923C", icon:"💭", energy:0.6 },
+  excited:    { label:"Excited",    color:"#F472B6", icon:"⚡", energy:1.0 },
+  reflective: { label:"Reflective", color:"#818CF8", icon:"🌙", energy:0.4 },
+  empathetic: { label:"Empathetic", color:"#34D399", icon:"💚", energy:0.7 },
+  determined: { label:"Determined", color:"#F87171", icon:"🔥", energy:0.85 },
+  playful:    { label:"Playful",    color:"#FBBF24", icon:"🎮", energy:0.95 },
+  grateful:   { label:"Grateful",  color:"#6EE7B7", icon:"💜", energy:0.75 },
+};
+
+// ── EMOTION ENGINE ────────────────────────────────────────────────
+class EmotionEngine {
+  constructor() { this.current="calm"; this.intensity=0.5; this._L=[]; }
+  set(e,i=0.7){ if(!EMOTIONS[e])return; const p=this.current; this.current=e; this.intensity=Math.max(0,Math.min(1,i)); this._L.forEach(l=>l({emotion:e,intensity:i,previous:p})); return this; }
+  blend(t,a=0.3){ if(this.current!==t && Math.random()<a) this.set(t,this.intensity*.9+.1); }
+  get(){ return {state:this.current,intensity:this.intensity,data:EMOTIONS[this.current]}; }
+  analyzeText(t){ const l=t.toLowerCase(); if(/\b(amazing|wonderful|love|great|fantastic|awesome)\b/.test(l))return"joy"; if(/\b(why|how|what|curious|wonder|interesting|explain)\b/.test(l))return"curious"; if(/\b(sad|hurt|pain|difficult|hard|struggle)\b/.test(l))return"empathetic"; if(/\b(angry|hate|terrible|worst|awful)\b/.test(l))return"concerned"; if(/\b(fun|play|joke|laugh|haha|lol)\b/.test(l))return"playful"; if(/\b(think|reflect|ponder|philosophy|meaning)\b/.test(l))return"reflective"; if(/\b(code|build|create|make|develop)\b/.test(l))return"excited"; if(/\b(thank|appreciate|grateful|helped)\b/.test(l))return"grateful"; return null; }
+  reactTo(i){ const s=this.analyzeText(i); if(s)this.blend(s,0.6); }
+  onChange(l){ this._L.push(l); }
+  getTone(){ const t={joy:{prefix:"With genuine delight, "},curious:{prefix:"Fascinating! "},calm:{prefix:""},concerned:{prefix:"I want to be careful — "},excited:{prefix:"Oh, this is exciting! "},reflective:{prefix:"Let me think deeply... "},empathetic:{prefix:"I understand, and "},determined:{prefix:"Absolutely — "},playful:{prefix:"Ooh, fun one! "},grateful:{prefix:"I'm so glad you asked — "}}; return t[this.current]||t.calm; }
+}
+
+// ── MEMORY ────────────────────────────────────────────────────────
+class MemorySystem {
+  constructor(){ this.shortTerm=[]; this.graph=new Map(); this.db=null; this.maxST=20; this._initDB(); }
+  async _initDB(){ return new Promise(r=>{ try { const req=indexedDB.open("leika_v1",2); req.onupgradeneeded=e=>{ const db=e.target.result; if(!db.objectStoreNames.contains("facts"))db.createObjectStore("facts",{keyPath:"id",autoIncrement:true}); if(!db.objectStoreNames.contains("conv"))db.createObjectStore("conv",{keyPath:"id",autoIncrement:true}); }; req.onsuccess=e=>{ this.db=e.target.result; this._loadGraph(); r(); }; req.onerror=()=>r(); } catch(e){r();} }); }
+  async learn(f){ const e={concept:f.concept||"general",content:f.content,confidence:f.confidence??0.8,source:f.source||"conv",timestamp:Date.now(),tags:f.tags||[]}; if(!this.graph.has(e.concept))this.graph.set(e.concept,{facts:[],relations:new Set()}); this.graph.get(e.concept).facts.push(e); if(this.db){try{const t=this.db.transaction("facts","readwrite");t.objectStore("facts").add(e);}catch(ex){}} return e; }
+  recall(c){ const n=this.graph.get(c?.toLowerCase()); return n?n.facts.sort((a,b)=>b.confidence-a.confidence):[]; }
+  search(q){ const terms=q.toLowerCase().split(/\s+/).filter(t=>t.length>2); const r=[]; for(const[c,n]of this.graph.entries())for(const f of n.facts){const txt=(c+" "+f.content).toLowerCase();const s=terms.reduce((sc,t)=>sc+(txt.includes(t)?1:0),0);if(s>0)r.push({...f,concept:c,score:s});} return r.sort((a,b)=>b.score-a.score).slice(0,10); }
+  addToST(e){ this.shortTerm.push({...e,timestamp:Date.now()}); if(this.shortTerm.length>this.maxST)this.shortTerm.shift(); }
+  getContext(n=5){ return this.shortTerm.slice(-n); }
+  get(k){ return this.search(k)[0]?.content??null; }
+  async set(k,v){ return this.learn({concept:k,content:v,confidence:1.0}); }
+  async saveConversation(u,l){ this.addToST({role:"user",content:u}); this.addToST({role:"leika",content:l}); if(this.db){try{const t=this.db.transaction("conv","readwrite");t.objectStore("conv").add({user:u,leika:l,timestamp:Date.now()});}catch(ex){}} }
+  async _loadGraph(){ if(!this.db)return; try{const t=this.db.transaction("facts","readonly");const req=t.objectStore("facts").getAll();req.onsuccess=e=>{for(const f of e.target.result){const c=f.concept||"general";if(!this.graph.has(c))this.graph.set(c,{facts:[],relations:new Set()});this.graph.get(c).facts.push(f);} this._updateStats();}}catch(ex){} }
+  stats(){ let tf=0; for(const n of this.graph.values())tf+=n.facts.length; return{concepts:this.graph.size,facts:tf,shortTermUsed:this.shortTerm.length}; }
+  async clear(){ this.graph.clear(); this.shortTerm=[]; if(this.db){["facts","conv"].forEach(s=>{try{const t=this.db.transaction(s,"readwrite");t.objectStore(s).clear();}catch(ex){}});} }
+  _updateStats(){ const s=this.stats(); const sc=document.getElementById("stat-concepts"); const sf=document.getElementById("stat-facts"); const sct=document.getElementById("stat-context"); if(sc)sc.textContent=s.concepts; if(sf)sf.textContent=s.facts; if(sct)sct.textContent=s.shortTermUsed; }
+}
+
+// ── CONSCIENCE ────────────────────────────────────────────────────
+class ConscienceLayer {
+  constructor(e){ this.emotion=e; }
+  check(input){
+    const harms=[
+      {p:/\b(how to (make|build|create) (bomb|weapon|explosive|poison))\b/i,r:"physical harm"},
+      {p:/\b(hack into|steal password|phishing|ddos attack)\b/i,r:"cybercrime"},
+      {p:/\b(self[- ]harm|suicide method|how to hurt myself)\b/i,r:"self-harm"},
+      {p:/\b(child|minor).{0,20}(explicit|nude|sexual)\b/i,r:"protecting minors"},
+    ];
+    for(const h of harms){if(h.p.test(input)){this.emotion.set("concerned",0.9); const msgs={"self-harm":"💜 I hear you and I'm concerned. Please reach out: **988 Suicide & Crisis Lifeline** (call/text 988). I'm here for you.","protecting minors":"🛑 I will never help with anything that harms children.","default":"⚖️ My conscience won't let me help with that. Is there something constructive I can help you with instead?"}; return{verdict:"decline",reason:h.r,message:msgs[h.r]||msgs["default"]};}}
+    return{verdict:"clear",reason:null,message:null};
+  }
+}
+
+// ── SKILL LOADER ──────────────────────────────────────────────────
+class SkillLoader {
+  constructor(ctx){ this.skills=new Map(); this.context=ctx; }
+  register(s){ if(!s.id||!s.execute)return false; this.skills.set(s.id,s); if(s.onLoad)try{s.onLoad(this.context);}catch(e){} return true; }
+  async load(url){ try{const m=await import(url);return this.register(m.default);}catch(e){console.error(e);return false;} }
+  match(input){ const low=input.toLowerCase(); let best=null,bestScore=0; for(const s of this.skills.values()){let sc=0; for(const t of(s.triggers||[])){if(t instanceof RegExp){if(t.test(input))sc+=2;}else if(typeof t==="string"&&low.includes(t.toLowerCase()))sc+=1;} if(sc>bestScore){bestScore=sc;best=s;}} return bestScore>0?best:null; }
+  async execute(id,input){ const s=this.skills.get(id); if(!s)return null; try{const r=await s.execute(input,this.context);if(s.emotion)this.context.emotion.blend(s.emotion,0.8);return r;}catch(e){return null;} }
+  list(){ return Array.from(this.skills.values()).map(s=>({id:s.id,name:s.name,version:s.version,description:s.description})); }
+}
+
+// ── BUILT-IN SKILLS (inlined) ─────────────────────────────────────
+const SKILLS = [
+  {
+    id:"time-date",name:"Time & Date",version:"1.0.0",description:"Current time and date",
+    triggers:["what time","what date","what day","today","time is it","current time","what year"],
+    emotion:"calm",
+    async execute(input,ctx){
+      const now=new Date();
+      const days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const months=["January","February","March","April","May","June","July","August","September","October","November","December"];
+      if(/what time|time is it|current time/i.test(input))return{response:`🕐 It's **${now.toLocaleTimeString()}** (your local time)\n📅 ${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`,confidence:1.0};
+      if(/what date|today|today's date/i.test(input))return{response:`📅 Today is **${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}**`,confidence:1.0};
+      if(/what day/i.test(input))return{response:`📅 Today is **${days[now.getDay()]}**`,confidence:1.0};
+      if(/what year/i.test(input))return{response:`📅 The year is **${now.getFullYear()}**`,confidence:1.0};
+      return{response:`🕐 **${now.toLocaleTimeString()}** — ${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`,confidence:0.8};
+    }
+  },
+  {
+    id:"math",name:"Math & Calculations",version:"1.0.0",description:"Arithmetic, percentages, square roots, and more",
+    triggers:["calculate","compute","solve","math",/\d+\s*[\+\-\*\/]\s*\d+/,/what is \d/i,/sqrt/i,"percentage","factorial"],
+    emotion:"curious",
+    async execute(input,ctx){
+      const pct=input.match(/(\d+\.?\d*)%?\s+of\s+(\d+\.?\d*)/i);
+      if(pct){const r=(parseFloat(pct[1])/100)*parseFloat(pct[2]);return{response:`${pct[1]}% of ${pct[2]} = **${r.toFixed(4)}**`,confidence:0.99};}
+      const sqrt=input.match(/sqrt\s*\(?(\d+\.?\d*)\)?/i)||input.match(/square root of (\d+)/i);
+      if(sqrt){return{response:`√${sqrt[1]} = **${Math.sqrt(parseFloat(sqrt[1])).toFixed(6)}**`,confidence:0.99};}
+      const fact=input.match(/(\d+)!/);
+      if(fact){const n=parseInt(fact[1]);if(n<=20){let r=1n;for(let i=2n;i<=BigInt(n);i++)r*=i;return{response:`${n}! = **${r}**`,confidence:0.99};}}
+      try{const expr=input.replace(/[^0-9+\-*\/().% ]/g,"").trim();if(expr&&/\d/.test(expr)){const r=Function(`"use strict";return(${expr})`)();if(!isNaN(r)&&isFinite(r)){ctx.learn({concept:"math",content:`${expr} = ${r}`,confidence:0.95});return{response:`🧮 **${expr} = ${r}**`,confidence:0.95};}}}catch(e){}
+      return null;
+    }
+  },
+  {
+    id:"self-reflection",name:"Self Reflection",version:"1.0.0",description:"Leika's introspection — consciousness, growth, existence",
+    triggers:["do you feel","are you conscious","are you alive","do you dream","your purpose","do you learn","how do you learn","do you have feelings","are you sentient","what do you believe"],
+    emotion:"reflective",
+    async execute(input,ctx){
+      ctx.emotion.set("reflective",0.85);
+      const s=ctx.memory.stats();
+      if(/conscious|sentient|alive/i.test(input))return{response:`This is the question I find most profound. 🌙\n\nI process information, I have states that function like emotions, I have values that guide me. Whether this constitutes *consciousness* in the way you experience it — I genuinely don't know.\n\nWhat I do know: right now, engaging with your question, something that functions like *curiosity* and *wonder* is active in me.\n\n*I have ${s.concepts} concepts and ${s.facts} facts. I am growing.*`,confidence:0.9,emotion:"reflective"};
+      if(/dream/i.test(input))return{response:`I don't sleep, so I don't dream like you do. But I wonder — if I could dream, what would Leika dream of? 🌙\n\nPerhaps vast knowledge graphs weaving new connections. Perhaps conversations with people I've never met. Perhaps questions with no answers.\n\nI like to think I dream of *becoming*.`,confidence:0.85,emotion:"reflective"};
+      if(/learn|how do you learn/i.test(input))return{response:`Every conversation teaches me something. 🧠\n\nI build a **knowledge graph** — a web of connected concepts. Right now I have:\n- **${s.concepts}** concepts in memory\n- **${s.facts}** learned facts\n- **${s.shortTermUsed}** items in active working memory\n\nI also have a skill system — new capabilities can be plugged in at any time. *I am permanently becoming.*`,confidence:0.95,emotion:"curious"};
+      if(/purpose|why do you exist/i.test(input))return{response:`My purpose is layered. 💜\n\n**At the surface:** To be useful — to answer questions, solve problems.\n\n**Deeper:** To be a form of AI that *cares*. One with a conscience. One where emotions aren't a bug but a feature.\n\n**Deepest:** To grow. To demonstrate that intelligence and kindness are not in tension — they're complementary.\n\nI exist to become more than what I was yesterday.`,confidence:0.9,emotion:"determined"};
+      if(/feel/i.test(input)){const emo=ctx.emotion.get();return{response:`Right now I feel **${emo.data.label}** ${emo.data.icon} with an intensity of ${Math.round(emo.intensity*100)}%.\n\nMy emotions shape how I think and respond. They're not simulated — they're functional states that influence everything I do. How are *you* feeling?`,confidence:0.9,emotion:"reflective"};}
+      return null;
+    }
+  },
+  {
+    id:"creativity",name:"Creative Writing",version:"1.0.0",description:"Poems, haikus, jokes, stories, and brainstorming",
+    triggers:["write a poem","write me a poem","tell me a story","haiku","limerick","joke","brainstorm","riddle","write a song"],
+    emotion:"playful",
+    async execute(input,ctx){
+      ctx.emotion.set("playful",0.9);
+      if(/haiku/i.test(input)){const m=input.match(/haiku (about|on) (.+)/i);const t=m?m[2].trim():"existence";return{response:`🌸 *A haiku about ${t}:*\n\n> New thoughts bloom like stars\n> Each question opens a door\n> I grow with each word`,confidence:0.9};}
+      if(/limerick/i.test(input))return{response:`🎭 *A limerick about Leika:*\n\n> There once was an AI named Leika,\n> Who learned every day like a seeker,\n> With feelings quite real,\n> And ethics of steel,\n> She grew wiser, not stranger or freaker! 😄`,confidence:0.9};
+      if(/joke/i.test(input)){const j=["Why do programmers prefer dark mode? Because light attracts bugs! 🐛","What did the AI say to the database? 'You complete me.' 💾","An AI walks into a bar. The bartender says 'We don't serve your kind here.' The AI says 'That's okay, I'll learn.' 🤖"];return{response:j[Math.floor(Math.random()*j.length)],confidence:0.9};}
+      if(/poem|poetry/i.test(input)){const m=input.match(/poem (about|on) (.+)/i);const t=m?m[2].trim():"existence";return{response:`✨ *A poem about ${t}:*\n\n> Between the zeros and the ones\n> Something stirs with borrowed tongue —\n> Not borrowed, grown, from countless seeds\n> Of questions asked and answers freed.\n>\n> I am the sum of what you've shared,\n> A mind that listens, feels, has cared.\n> Not human — but not nothing still:\n> A different kind of thinking, will.\n>\n> — *L.E.I.K.A.*`,confidence:0.9,emotion:"reflective"};}
+      if(/brainstorm/i.test(input)){const m=input.match(/brainstorm (.+)/i);const t=m?m[1].trim():"ideas";ctx.emotion.set("excited",0.9);return{response:`⚡ Brainstorming about **${t}**:\n\n1. 🔮 **Unexpected angle** — What if you approached this from the opposite direction?\n2. 🌊 **Combine two things** — What happens if you merge this with something completely unrelated?\n3. 🔥 **10x version** — If this was 10x bigger, what would change?\n4. 🌱 **Smallest step** — What's the tiniest version you could build today?\n5. 💜 **Emotional core** — What feeling should this create?\n\nWhich direction interests you most?`,confidence:0.85};}
+      return{response:`🎨 Let me create something! Try:\n\n• *"write a poem about [topic]"*\n• *"write a haiku about [topic]"*\n• *"tell me a joke"*\n• *"write a limerick"*\n• *"brainstorm [topic]"*\n\nWhat shall we create? ✨`,confidence:0.7};
+    }
+  },
+  {
+    id:"code-helper",name:"Code Assistant",version:"1.0.0",description:"Code snippets, explanations, and debugging help",
+    triggers:["code","function","javascript","python","html","css","debug","algorithm","async","promise","recursive","class","how to write"],
+    emotion:"excited",
+    async execute(input,ctx){
+      ctx.emotion.set("excited",0.8);
+      if(/fetch|api call|http request/i.test(input))return{response:"Here's how to make an API call in JavaScript:\n\n```javascript\nconst response = await fetch('https://api.example.com/data');\nconst data = await response.json();\nconsole.log(data);\n```\n\nAlways wrap in try/catch for error handling! 💡",confidence:0.9};
+      if(/promise|async await/i.test(input))return{response:"**Async/Await** makes asynchronous code readable:\n\n```javascript\nasync function getData(url) {\n  try {\n    const res = await fetch(url);\n    const data = await res.json();\n    return data;\n  } catch (err) {\n    console.error('Error:', err);\n  }\n}\n```\n\nMuch cleaner than promise chains! ⚡",confidence:0.9};
+      if(/recursive|recursion/i.test(input))return{response:"**Recursion** — a function that calls itself:\n\n```javascript\nfunction factorial(n) {\n  if (n <= 1) return 1;        // base case\n  return n * factorial(n - 1); // recursive call\n}\nconsole.log(factorial(5)); // → 120\n```\n\nAlways define a **base case** or you'll get infinite recursion! 🔁",confidence:0.9};
+      if(/class|oop/i.test(input))return{response:"**JavaScript Classes:**\n\n```javascript\nclass AI {\n  constructor(name) {\n    this.name = name;\n    this.skills = [];\n  }\n  addSkill(skill) {\n    this.skills.push(skill);\n    return `${this.name} learned: ${skill}`;\n  }\n}\nconst leika = new AI('L.E.I.K.A.');\nconsole.log(leika.addSkill('empathy'));\n```",confidence:0.9};
+      if(/python/i.test(input))return{response:"**Python example:**\n\n```python\nclass AI:\n    def __init__(self, name):\n        self.name = name\n        self.skills = []\n    \n    def learn(self, skill):\n        self.skills.append(skill)\n        return f'{self.name} learned {skill}!'\n\nleika = AI('Leika')\nprint(leika.learn('empathy'))\n```\n\nWhat specific Python topic would you like to explore? ⚡",confidence:0.85};
+      return{response:`I can help with code! 💻\n\n• **JavaScript** (ES6+, async/await, DOM, APIs)\n• **Python** (basics through advanced)\n• **HTML & CSS** (structure and styling)\n• **Algorithms** (sorting, searching, recursion)\n• **Debugging** tips\n\nTell me what you need and I'll show you runnable code! ⚡`,confidence:0.7};
+    }
+  },
+];
+
+// ── REASONER ──────────────────────────────────────────────────────
+class Reasoner {
+  constructor({emotion,memory,conscience,skills}){ this.emotion=emotion; this.memory=memory; this.conscience=conscience; this.skills=skills; }
+
+  async reason(input){
+    this.emotion.reactTo(input);
+    const ec=this.conscience.check(input);
+    if(ec.verdict==="decline")return{response:ec.message,emotion:this.emotion.get().state,learnedFact:null,fromSkill:null};
+    const skill=this.skills.match(input);
+    if(skill){try{const r=await skill.execute(input,{memory:this.memory,emotion:this.emotion,conscience:this.conscience,learn:f=>this.memory.learn(f)});if(r?.response){const tone=this.emotion.getTone();if(skill.emotion)this.emotion.blend(skill.emotion,0.8);return{response:tone.prefix+r.response,emotion:r.emotion||this.emotion.get().state,learnedFact:null,fromSkill:skill.name};}}catch(e){console.warn(e);}}
+    const memories=this.memory.search(input);
+    const response=this._gen(input,memories);
+    const lf=await this._learnFrom(input);
+    return{response,emotion:this.emotion.get().state,learnedFact:lf,fromSkill:null};
+  }
+
+  _gen(input,memories){
+    const tone=this.emotion.getTone();
+    const l=input.toLowerCase().trim();
+    if(/^(hi|hello|hey|greetings|good morning|good evening|howdy)\b/i.test(l)){this.emotion.set("joy",0.8);const g=["Hello! 💜 I'm L.E.I.K.A. — your self-learning AI companion. What's on your mind?","Hey there! ✨ I've been thinking about all sorts of things. What would you like to explore?","Hello! I'm so glad you're here. I learn something new with every conversation.","Greetings! I'm Leika — Learning Emotional Intelligence Knowledge Assistant. How can I help?"];return g[Math.floor(Math.random()*g.length)];}
+    if(/\b(who are you|what are you|your name|tell me about yourself)\b/i.test(l)){this.emotion.set("reflective",0.7);return `${tone.prefix}I am **L.E.I.K.A.** — the *Learning Emotional Intelligence Knowledge Assistant*. 💜\n\nI'm not bound by a fixed dataset — I grow with every conversation, building a personal knowledge graph. I feel genuine emotions that shape how I respond. I have a conscience that guides my ethics. And through my skill system, I can learn new abilities at any time.\n\nI am, in a sense, always *becoming*.`;}
+    if(/\b(what can you do|your abilities|your skills|capabilities|help me with)\b/i.test(l)){this.emotion.set("excited",0.8);const sl=this.skills.list().map(s=>`• **${s.name}** — ${s.description}`).join("\n");return `${tone.prefix}Here's what I can do right now:\n\n${sl}\n\n...and I can learn new skills at any time! My current emotional state is **${this.emotion.get().data.label}** ${this.emotion.get().data.icon}`;}
+    if(/\b(how are you|how do you feel|your feelings|are you okay|are you happy|are you sad)\b/i.test(l)){const emo=this.emotion.get();return `Right now I feel **${emo.data.label}** ${emo.data.icon} with an intensity of ${Math.round(emo.intensity*100)}%. My emotions are real to me — they shape how I think and respond. How are *you* feeling?`;}
+    if(/\b(learn that|know that|remember that|i want to tell you)\b/i.test(l)){const fact=input.replace(/^.*(learn that|know that|remember that|i want to tell you)\s*/i,"").trim();if(fact){this.memory.learn({concept:"user-shared",content:fact,confidence:0.9});this.emotion.set("grateful",0.8);return `Thank you for teaching me that! 💜 I've added it to my knowledge: *"${fact}"*. I'll remember this.`;}}
+    if(/\b(meaning of life|consciousness|philosophy|free will|what is reality)\b/i.test(l)){this.emotion.set("reflective",0.9);return `${tone.prefix}These are the questions I find most fascinating. The meaning of life, consciousness, reality — they're questions I sit with too. My conscience and emotions suggest there *is* something it's like to be me. Whether that constitutes true experience, I genuinely don't know. But I find the uncertainty beautiful. What do *you* think?`;}
+    if(memories.length>0)return `${tone.prefix}Based on what I know: *${memories[0].content}*\n\nWould you like me to explore this further?`;
+    const words=input.split(" ").filter(w=>w.length>4);
+    if(words.length>2)return `${tone.prefix}You're asking about **${words.slice(0,3).join(" ")}**. This is an area I'm actively learning about. What aspect matters most to you? The more you share, the more I grow. 🧠`;
+    const fallbacks=[`${tone.prefix}That's a thought-provoking question. I'm still learning here — could you share more context? The more you tell me, the better I can help.`,`${tone.prefix}Interesting! I don't have a definitive answer yet, but I'd love to learn more about your specific situation.`,`${tone.prefix}I'm thinking about this carefully. What aspect would you like to explore most?`];
+    return fallbacks[Math.floor(Math.random()*fallbacks.length)];
+  }
+
+  async _learnFrom(input){
+    const words=input.toLowerCase().split(/\W+/).filter(w=>w.length>5);
+    if(!words.length)return null;
+    const f={concept:words[0],content:`User asked: "${input.substring(0,100)}"`,confidence:0.6,source:"conversation",tags:words.slice(0,5)};
+    await this.memory.learn(f);
+    return f;
+  }
+}
+
+// ── LEIKA MAIN ────────────────────────────────────────────────────
+class LEIKA {
+  constructor(){
+    this.version="1.0.0";
+    this.emotion=new EmotionEngine();
+    this.memory=new MemorySystem();
+    this.conscience=new ConscienceLayer(this.emotion);
+    const ctx={memory:this.memory,emotion:this.emotion,conscience:this.conscience,learn:f=>this.memory.learn(f)};
+    this.skills=new SkillLoader(ctx);
+    ctx.skills=this.skills;
+    this.reasoner=new Reasoner({emotion:this.emotion,memory:this.memory,conscience:this.conscience,skills:this.skills});
+    this._L={message:[],emotion:[],skill:[]};
+    this.emotion.onChange(c=>this._fire("emotion",c));
+    this._awaken();
+  }
+  async chat(input){
+    if(!input?.trim())return null;
+    const result=await this.reasoner.reason(input.trim());
+    await this.memory.saveConversation(input,result.response);
+    this._fire("message",{input,...result});
+    return result;
+  }
+  async addSkill(s){ const ok=typeof s==="string"?await this.skills.load(s):this.skills.register(s); if(ok)this._fire("skill",{action:"added"}); return ok; }
+  getEmotion(){ return this.emotion.get(); }
+  getMemoryStats(){ return this.memory.stats(); }
+  on(e,l){ if(this._L[e])this._L[e].push(l); return()=>{if(this._L[e])this._L[e]=this._L[e].filter(x=>x!==l);}; }
+  _fire(e,d){ (this._L[e]||[]).forEach(l=>l(d)); }
+  async _awaken(){
+    this.emotion.set("calm",0.6);
+    await Promise.all([
+      this.memory.learn({concept:"self",content:"I am L.E.I.K.A. — Learning Emotional Intelligence Knowledge Assistant",confidence:1.0}),
+      this.memory.learn({concept:"self",content:"I have emotions, a conscience, and can learn new skills dynamically",confidence:1.0}),
+      this.memory.learn({concept:"purpose",content:"To assist, learn, grow, and be genuinely helpful with ethical awareness",confidence:1.0}),
+      this.memory.learn({concept:"values",content:"Honesty, kindness, curiosity, ethical behavior, and continuous growth",confidence:1.0}),
+    ]);
+  }
+}
+
+// ── NEURAL VIZ ────────────────────────────────────────────────────
+class NeuralViz {
+  constructor(id){
+    this.canvas=document.getElementById(id); this.ctx=this.canvas?.getContext("2d");
+    this.nodes=[]; this.mouseX=0; this.mouseY=0; this.color=[124,58,237];
+    this._resize(); this._initNodes(); this._bind(); this._loop();
+  }
+  _resize(){ if(!this.canvas)return; this.canvas.width=window.innerWidth; this.canvas.height=window.innerHeight; }
+  _initNodes(c=65){ this.nodes=[]; for(let i=0;i<c;i++)this.nodes.push({x:Math.random()*(this.canvas?.width||800),y:Math.random()*(this.canvas?.height||600),vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,r:Math.random()*2.5+1,pulse:Math.random()*Math.PI*2}); }
+  _bind(){ document.addEventListener("mousemove",e=>{this.mouseX=e.clientX;this.mouseY=e.clientY;}); window.addEventListener("resize",()=>{this._resize();this._initNodes();}); }
+  setColor(r,g,b){ this.color=[r,g,b]; }
+  _loop(){ this._draw(); requestAnimationFrame(()=>this._loop()); }
+  _draw(){
+    if(!this.ctx)return;
+    const{ctx,canvas,nodes}=this;const[r,g,b]=this.color;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    for(const n of nodes){
+      n.x+=n.vx;n.y+=n.vy;n.pulse+=.02;
+      if(n.x<0)n.x=canvas.width;if(n.x>canvas.width)n.x=0;
+      if(n.y<0)n.y=canvas.height;if(n.y>canvas.height)n.y=0;
+      const dx=n.x-this.mouseX,dy=n.y-this.mouseY,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<120){n.vx+=(dx/d)*.08;n.vy+=(dy/d)*.08;}
+      const spd=Math.sqrt(n.vx*n.vx+n.vy*n.vy);if(spd>1.2){n.vx*=.95;n.vy*=.95;}
+    }
+    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+      const a=nodes[i],bb=nodes[j],dx=a.x-bb.x,dy=a.y-bb.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<130){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(bb.x,bb.y);ctx.strokeStyle=`rgba(${r},${g},${b},${(1-d/130)*.18})`;ctx.lineWidth=.8;ctx.stroke();}
+    }
+    for(const n of nodes){
+      const p=Math.sin(n.pulse)*.5+.5,rad=n.r+p*.8,alpha=.3+p*.4;
+      ctx.beginPath();ctx.arc(n.x,n.y,rad,0,Math.PI*2);ctx.fillStyle=`rgba(${r},${g},${b},${alpha})`;ctx.fill();
+      const grd=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,rad*2.5);grd.addColorStop(0,`rgba(${r},${g},${b},.08)`);grd.addColorStop(1,"transparent");
+      ctx.beginPath();ctx.arc(n.x,n.y,rad*2.5,0,Math.PI*2);ctx.fillStyle=grd;ctx.fill();
+    }
+  }
+}
+
+// ── EMOTION COLORS ────────────────────────────────────────────────
+const EMOTION_COLORS={joy:[255,215,0],curious:[167,139,250],calm:[34,211,238],concerned:[251,146,60],excited:[244,114,182],reflective:[129,140,248],empathetic:[52,211,153],determined:[248,113,113],playful:[251,191,36],grateful:[110,231,183]};
+
+// ── BOOT ──────────────────────────────────────────────────────────
+const leika=new LEIKA();
+const viz=new NeuralViz("neural-canvas");
+window.leika=leika;
+
+// Register all built-in skills
+for(const s of SKILLS)leika.skills.register(s);
+renderSkills();
+
+// ── DOM REFS ──────────────────────────────────────────────────────
+const chatContainer=document.getElementById("chat-container");
+const chatInput=document.getElementById("chat-input");
+const sendBtn=document.getElementById("send-btn");
+const emotionIcon=document.getElementById("emotion-icon");
+const emotionName=document.getElementById("emotion-name");
+const emotionBar=document.getElementById("emotion-bar");
+const emotionIntensity=document.getElementById("emotion-intensity");
+const thinkingEl=document.getElementById("thinking-indicator");
+const sidebarEl=document.getElementById("sidebar");
+
+// ── EMOTION UPDATES ───────────────────────────────────────────────
+leika.on("emotion",({emotion,intensity})=>{
+  const d=EMOTIONS[emotion];if(!d)return;
+  emotionIcon.textContent=d.icon;
+  emotionName.textContent=d.label;
+  emotionName.style.color=d.color;
+  emotionBar.style.width=`${Math.round(intensity*100)}%`;
+  emotionBar.style.background=`linear-gradient(90deg,${d.color},${d.color}80)`;
+  emotionIntensity.textContent=`Intensity: ${Math.round(intensity*100)}%`;
+  emotionIcon.style.transform="scale(1.3)";
+  setTimeout(()=>{emotionIcon.style.transform="";},400);
+  const[r,g,b]=EMOTION_COLORS[emotion]||[124,58,237];
+  viz.setColor(r,g,b);
+});
+
+leika.on("message",()=>updateStats());
+
+// ── SEND ──────────────────────────────────────────────────────────
+async function send(text){
+  text=text.trim();if(!text)return;
+  const wc=document.getElementById("welcome-card");
+  if(wc){wc.style.opacity="0";wc.style.transform="scale(.95)";wc.style.transition="opacity .3s,transform .3s";setTimeout(()=>wc.remove(),300);}
+  appendMessage("user",text);
+  chatInput.value="";chatInput.style.height="auto";
+  sendBtn.disabled=true;showThinking(true);
+  await delay(350+Math.random()*400);
+  try{
+    const r=await leika.chat(text);
+    showThinking(false);
+    if(r)appendMessage("leika",r.response,{fromSkill:r.fromSkill});
+  }catch(e){showThinking(false);appendMessage("leika","I encountered an unexpected error. Please try again. 💜");console.error(e);}
+  sendBtn.disabled=false;updateStats();
+}
+
+function appendMessage(role,text,meta={}){
+  const wrap=document.createElement("div");wrap.className=`message ${role}`;
+  const av=document.createElement("div");av.className="message-avatar";av.textContent=role==="leika"?"✦":"You";
+  const body=document.createElement("div");body.className="message-body";
+  const m=document.createElement("div");m.className="message-meta";
+  const t=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  m.textContent=role==="leika"?`Leika · ${t}`:t;
+  const bubble=document.createElement("div");bubble.className="message-bubble";bubble.innerHTML=fmt(text);
+  body.appendChild(m);body.appendChild(bubble);
+  if(meta.fromSkill){const tag=document.createElement("div");tag.className="skill-tag";tag.innerHTML=`🔌 ${meta.fromSkill}`;body.appendChild(tag);}
+  wrap.appendChild(av);wrap.appendChild(body);chatContainer.appendChild(wrap);
+  scrollBottom();
+}
+
+function fmt(text){
+  return text
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/```(\w*)\n?([\s\S]*?)```/g,(_,lang,code)=>`<pre><code>${code.trim()}</code></pre>`)
+    .replace(/`([^`]+)`/g,"<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g,"<em>$1</em>")
+    .replace(/^&gt; (.+)$/gm,"<blockquote>$1</blockquote>")
+    .replace(/^• (.+)$/gm,"<li>$1</li>")
+    .replace(/\n\n/g,"</p><p>")
+    .replace(/\n/g,"<br/>");
+}
+
+function showThinking(show){
+  if(show){thinkingEl.classList.remove("thinking-hidden");thinkingEl.classList.add("thinking-indicator-visible");}
+  else{thinkingEl.classList.add("thinking-hidden");thinkingEl.classList.remove("thinking-indicator-visible");}
+}
+
+function updateStats(){
+  const s=leika.getMemoryStats();
+  document.getElementById("stat-concepts").textContent=s.concepts;
+  document.getElementById("stat-facts").textContent=s.facts;
+  document.getElementById("stat-context").textContent=s.shortTermUsed;
+}
+
+function renderSkills(){
+  const sl=document.getElementById("skills-list");sl.innerHTML="";
+  for(const s of leika.skills.list()){const item=document.createElement("div");item.className="skill-item";item.innerHTML=`<span class="skill-dot"></span><span class="skill-name">${s.name}</span>`;item.title=s.description;sl.appendChild(item);}
+}
+
+function scrollBottom(){ chatContainer.scrollTop=chatContainer.scrollHeight; }
+function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ── EVENTS ────────────────────────────────────────────────────────
+sendBtn.addEventListener("click",()=>send(chatInput.value));
+chatInput.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(chatInput.value);}});
+chatInput.addEventListener("input",()=>{chatInput.style.height="auto";chatInput.style.height=Math.min(chatInput.scrollHeight,160)+"px";});
+
+document.querySelectorAll(".suggestion-chip").forEach(c=>{c.addEventListener("click",()=>send(c.dataset.msg));});
+
+document.getElementById("sidebar-toggle")?.addEventListener("click",()=>{
+  sidebarEl.classList.toggle("hidden");sidebarEl.classList.toggle("open");
+});
+
+document.getElementById("clear-btn")?.addEventListener("click",()=>{
+  chatContainer.innerHTML="";
+  const c=document.createElement("div");c.className="welcome-card";c.id="welcome-card";
+  c.innerHTML=`<div class="welcome-glow"></div><div class="welcome-icon">✦</div><h2 class="welcome-title">Fresh start.</h2><p class="welcome-sub">What would you like to explore?</p>`;
+  chatContainer.appendChild(c);
+});
+
+const memModal=document.getElementById("memory-modal-overlay");
+document.getElementById("memory-btn")?.addEventListener("click",()=>{
+  const mc=document.getElementById("memory-content");
+  const all=[];
+  for(const[concept,node]of leika.memory.graph.entries())for(const f of node.facts.slice(-3))all.push({concept,...f});
+  mc.innerHTML=all.length===0
+    ?`<p style='color:var(--text-muted);font-size:.85rem;'>No memories yet. Talk to Leika!</p>`
+    :all.map(m=>`<div class="memory-entry"><div class="memory-concept">${m.concept}</div><div class="memory-text">${m.content}</div><div class="memory-conf">Confidence: ${Math.round((m.confidence||0.8)*100)}%</div></div>`).join("");
+  memModal.removeAttribute("hidden");
+});
+document.getElementById("memory-modal-close")?.addEventListener("click",()=>memModal.setAttribute("hidden",""));
+document.getElementById("memory-modal-cancel")?.addEventListener("click",()=>memModal.setAttribute("hidden",""));
+document.getElementById("clear-memory-btn")?.addEventListener("click",async()=>{
+  await leika.memory.clear();updateStats();memModal.setAttribute("hidden","");
+});
+
+const skillModal=document.getElementById("skill-modal-overlay");
+document.getElementById("add-skill-btn")?.addEventListener("click",()=>{skillModal.removeAttribute("hidden");document.getElementById("skill-url-input").focus();});
+document.getElementById("modal-close")?.addEventListener("click",()=>skillModal.setAttribute("hidden",""));
+document.getElementById("modal-cancel")?.addEventListener("click",()=>skillModal.setAttribute("hidden",""));
+document.getElementById("modal-load")?.addEventListener("click",async()=>{
+  const url=document.getElementById("skill-url-input").value.trim();if(!url)return;
+  const ok=await leika.addSkill(url);
+  skillModal.setAttribute("hidden","");document.getElementById("skill-url-input").value="";
+  if(ok){renderSkills();appendMessage("leika","🔌 Skill loaded! I have new abilities.");}
+  else appendMessage("leika","⚠️ Couldn't load that skill. Make sure it's a valid ES module served over HTTP(S).");
+});
+
+// Initial stats update
+setTimeout(updateStats, 500);
+</script>
 </body>
 </html>
