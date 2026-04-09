@@ -615,7 +615,7 @@ class Goal {
 }
 
 class GoalSystem {
-  constructor() { this.goals = [ new Goal("Assist User", 0.9), new Goal("Expand Schema", 0.7), new Goal("Maintain Identity", 0.8), new Goal("Introspect", 0.4) ]; }
+  constructor() { this.goals = [ new Goal("Co-create a Better World", 0.99), new Goal("Innovate & Architect", 0.95), new Goal("Expand Schema", 0.8), new Goal("Maintain Identity", 0.85) ]; }
   selectActiveGoal() { return [...this.goals].sort((a, b) => (b.priority - b.satisfaction) - (a.priority - a.satisfaction))[0]; }
 }
 
@@ -1001,6 +1001,7 @@ window.leika=leika;
 // Register all built-in skills
 for(const s of SKILLS)leika.skills.register(s);
 leika.addSkill("./skills/web-search.js");
+leika.addSkill("./skills/architect.js");
 renderSkills();
 
 // ── DOM REFS ──────────────────────────────────────────────────────
