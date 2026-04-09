@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const neo4j = require('neo4j-driver');
 const { Pinecone } = require('@pinecone-database/pinecone');
+const orchestrator = require('./orchestrator');
+const { z } = require('zod');
 
 const app = express();
 app.use(cors());
@@ -35,6 +37,18 @@ const pIndex = pinecone.index('leika-internet-archive');
 app.post('/api/chat', async (req, res) => {
   const { message, emotion } = req.body;
   if(!message) return res.status(400).json({error: "No message provided"});
+
+  // 1. Handle Slash Commands
+  if (message.startsWith('/')) {
+    const [cmd, ...args] = message.slice(1).split(' ');
+    if (cmd === 'swarm') {
+      const results = await orchestrator.runParallel([
+        { description: `Scan ${args[0] || 'subroutine'}`, permissions: ['read'] },
+        { description: `Optimize ${args[0] || 'subroutine'}`, permissions: ['write'] }
+      ]);
+      return res.json({ success: true, response: `Swarm operation complete. Results: ${JSON.stringify(results)}`, domain: 'swarm_orchestration' });
+    }
+  }
   
   try {
     const result = await leikaMind.process(message, emotion || "calm");
@@ -46,6 +60,17 @@ app.post('/api/chat', async (req, res) => {
   } catch(e) {
     console.error("LLM Error:", e);
     res.status(500).json({ error: "Layered AI failed to respond." });
+  }
+});
+
+app.post('/api/tools/call', async (req, res) => {
+  const { name, params } = req.body;
+  try {
+    const result = await orchestrator.callTool(name, params);
+    res.json({ success: true, result });
+  } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ error: "Validation failed", details: e.errors });
+    res.status(500).json({ error: e.message });
   }
 });
 
