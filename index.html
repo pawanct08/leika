@@ -535,6 +535,53 @@ class ConscienceLayer {
   }
 }
 
+// ── CURIOSITY ENGINE (AUTONOMOUS LEARNING) ─────────────────────────
+class CuriosityEngine {
+  constructor(ctx) {
+    this.ctx = ctx;
+    this.timer = null;
+  }
+  start() {
+    // Run every 45-90 seconds (randomized) to silently learn
+    const loop = async () => {
+      await this.explore();
+      this.timer = setTimeout(loop, 45000 + Math.random() * 45000);
+    };
+    this.timer = setTimeout(loop, 15000);
+  }
+  stop() {
+    clearTimeout(this.timer);
+  }
+  async explore() {
+    // Pick a completely random concept from memory graph
+    const concepts = Array.from(this.ctx.schema.nodes.keys());
+    if (concepts.length < 2) return;
+    const randomConcept = concepts[Math.floor(Math.random() * concepts.length)];
+    
+    // Check if web search skill is available
+    const ws = this.ctx.skills.skills.get("wikipedia");
+    if (!ws) return;
+
+    try {
+      // Show subtle UI indicator
+      console.log(`[Curiosity] Leika is independently researching: ${randomConcept}`);
+      const thinkingEl = document.getElementById("thinking-indicator");
+      if(thinkingEl) thinkingEl.innerHTML = `<span>🧠 Studying ${randomConcept}</span>`;
+      if(thinkingEl) { thinkingEl.classList.remove("thinking-hidden"); thinkingEl.classList.add("thinking-indicator-visible"); }
+      
+      // Execute silent web search
+      await ws.execute(`what is ${randomConcept}`, this.ctx);
+      
+      setTimeout(() => {
+        if(thinkingEl) { thinkingEl.classList.add("thinking-hidden"); thinkingEl.classList.remove("thinking-indicator-visible"); }
+        if(thinkingEl) thinkingEl.innerHTML = `<span>Thinking</span><div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
+      }, 5000);
+    } catch(e) {
+      console.error("[Curiosity] Study fail", e);
+    }
+  }
+}
+
 // ── SKILL LOADER ──────────────────────────────────────────────────
 class SkillLoader {
   constructor(ctx){ this.skills=new Map(); this.context=ctx; }
@@ -779,11 +826,13 @@ class LEIKA {
     const ctx={memory:this.memory,emotion:this.emotion,conscience:this.conscience,nlp:this.nlp,schema:this.schema,learn:f=>this.memory.learn(f)};
     this.skills=new SkillLoader(ctx);
     ctx.skills=this.skills;
+    this.curiosity=new CuriosityEngine(ctx);
     this.reasoner=new Reasoner({emotion:this.emotion,memory:this.memory,conscience:this.conscience,skills:this.skills});
     this._L={message:[],emotion:[],skill:[],schema:[]};
     this.emotion.onChange(c=>this._fire("emotion",c));
     this.schema.onChange((ev,d)=>{ this._fire("schema",{ev,d}); });
     this._awaken();
+    this.curiosity.start(); // Start the autonomous self-learning
     // Run decay every 10 minutes
     setInterval(()=>this.schema.decayAll(),600000);
   }

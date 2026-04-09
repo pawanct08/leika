@@ -10,16 +10,10 @@ app.use(express.json());
 
 // ── LAYERED LLM ORCHESTRATOR ───────────────────────────────────────────
 const LeikaLayeredLLM = require('./layered_llm');
-// Use Mock if no key, else use Anthropic Claude
+// Use Mock if no key, else use LangChain LLM (placeholder for OpenAI, etc)
 let llmInstance = null; 
-const { ChatAnthropic } = require("@langchain/anthropic");
-if (process.env.ANTHROPIC_API_KEY) {
-  llmInstance = new ChatAnthropic({ 
-    modelName: "claude-3-opus-20240229", // Use Claude 3 Opus for Leika's brain
-    temperature: 0.2,
-    anthropicApiKey: process.env.ANTHROPIC_API_KEY
-  });
-}
+// Example: const { ChatOpenAI } = require("@langchain/openai");
+// if(process.env.OPENAI_API_KEY) llmInstance = new ChatOpenAI({ temperature: 0.2 });
 
 const leikaMind = new LeikaLayeredLLM(llmInstance);
 

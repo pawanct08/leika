@@ -4,7 +4,6 @@
   "description": "Leika V2 - Internet Scale Architecture API",
   "main": "server.js",
   "dependencies": {
-    "@langchain/anthropic": "^0.1.1",
     "@langchain/core": "^0.1.58",
     "@pinecone-database/pinecone": "^1.1.2",
     "cors": "^2.8.5",
