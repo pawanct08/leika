@@ -368,6 +368,53 @@ class EmotionEngine {
   getTone(){ const t={joy:{prefix:"With genuine delight, "},curious:{prefix:"Fascinating! "},calm:{prefix:""},concerned:{prefix:"I want to be careful — "},excited:{prefix:"Oh, this is exciting! "},reflective:{prefix:"Let me think deeply... "},empathetic:{prefix:"I understand, and "},determined:{prefix:"Absolutely — "},playful:{prefix:"Ooh, fun one! "},grateful:{prefix:"I'm so glad you asked — "}}; return t[this.current]||t.calm; }
 }
 
+// ── CRYPTOGRAPHY LAYER (AES-GCM) ──────────────────────────────────
+class CryptoLayer {
+  static async getKey() {
+    return new Promise((resolve) => {
+      const req = indexedDB.open("leika_vault", 1);
+      req.onupgradeneeded = e => e.target.result.createObjectStore("keys");
+      req.onsuccess = async e => {
+        const db = e.target.result;
+        const tx = db.transaction("keys", "readwrite");
+        const store = tx.objectStore("keys");
+        const keyReq = store.get("master");
+        keyReq.onsuccess = async () => {
+          if (keyReq.result) { resolve(keyReq.result); }
+          else {
+            const newKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+            store.put(newKey, "master");
+            resolve(newKey);
+          }
+        };
+      };
+    });
+  }
+  static async encrypt(text) {
+    if(!window.crypto?.subtle) return btoa(encodeURIComponent(text));
+    const key = await this.getKey();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const enc = new TextEncoder().encode(text);
+    const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, enc);
+    const cmb = new Uint8Array(iv.length + cipher.byteLength);
+    cmb.set(iv, 0); cmb.set(new Uint8Array(cipher), iv.length);
+    let s = ""; for(let i=0; i<cmb.length; i++) s += String.fromCharCode(cmb[i]);
+    return btoa(s);
+  }
+  static async decrypt(b64) {
+    if(!window.crypto?.subtle) return decodeURIComponent(atob(b64));
+    let s; try{s=atob(b64);}catch(e){return null;}
+    const cmb = new Uint8Array(s.length);
+    for(let i=0; i<s.length; i++) cmb[i] = s.charCodeAt(i);
+    const iv = cmb.slice(0, 12), data = cmb.slice(12);
+    const key = await this.getKey();
+    try {
+      const dec = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+      return new TextDecoder().decode(dec);
+    } catch(e) { return null; }
+  }
+}
+
 // ── NEURAL SCHEMA ────────────────────────────────────────────────
 const _REL={ASSOCIATED:"associated",CAUSES:"causes",IS_A:"is-a",PART_OF:"part-of",RELATED:"related",OPPOSITE:"opposite",TEMPORAL:"temporal",CREATOR:"creator",EMOTIONAL:"emotional"};
 
@@ -390,7 +437,8 @@ class SchemaEdge {
 }
 
 class NeuralSchema {
-  constructor(){this.nodes=new Map();this.edges=new Map();this.adj=new Map();this._listeners=[];this._stop=new Set(["this","that","with","from","what","when","where","which","about","into","your","just","also","more","some","like","then","than","only","come","know","very","such","make","well","even","much","most","over","here","both","each","their","there","these","those","many","must","does","could","would","should"]);this._seed();this._load();}
+  constructor(){this.nodes=new Map();this.edges=new Map();this.adj=new Map();this._listeners=[];this._stop=new Set(["this","that","with","from","what","when","where","which","about","into","your","just","also","more","some","like","then","than","only","come","know","very","such","make","well","even","much","most","over","here","both","each","their","there","these","those","many","must","does","could","would","should"]);}
+  async init(){ await this._load(); if(this.nodes.size===0) this._seed(); }
   addNode(id,opts={}){const c=id.toLowerCase().trim();if(!c)return null;if(this.nodes.has(c)){const n=this.nodes.get(c);if(opts.text)n.addText(opts.text);if(opts.fact){n.facts.push(opts.fact);n.addText(opts.fact);}n.lastAccess=Date.now();n.accessCount++;return n;}const node=new SchemaNode(c,opts);this.nodes.set(c,node);this.adj.set(c,new Set());this._notify("node:add",node);this._autoSave();return node;}
   getNode(id){return this.nodes.get(id?.toLowerCase().trim());}
   connect(src,tgt,type=_REL.ASSOCIATED,w=0.3){const s=src.toLowerCase().trim(),t=tgt.toLowerCase().trim();if(s===t)return null;if(!this.nodes.has(s))this.addNode(s);if(!this.nodes.has(t))this.addNode(t);const key=`${s}::${type}::${t}`;if(this.edges.has(key)){const e=this.edges.get(key);e.reinforce();return e;}const edge=new SchemaEdge(s,t,type,w);this.edges.set(key,edge);this.adj.get(s)?.add(t);this._notify("edge:add",edge);return edge;}
@@ -404,8 +452,30 @@ class NeuralSchema {
   decayAll(){const now=Date.now();for(const[k,e]of this.edges.entries()){e.decay(now);if(e.weight<0.005&&e.reinforcements<3)this.edges.delete(k);}}
   _seed(){const seeds=[{id:"leika",label:"L.E.I.K.A.",importance:1.0,text:"learning emotional intelligence knowledge assistant"},{id:"pawan",label:"Pawan",importance:1.0,text:"creator architect pawan pawanct08 soul builder"},{id:"emotion",label:"Emotions",importance:0.9,text:"joy curious calm excited reflective empathetic grateful"},{id:"conscience",label:"Conscience",importance:0.9,text:"ethics honesty kindness safety moral values"},{id:"memory",label:"Memory",importance:0.85,text:"knowledge facts recall learning remember indexeddb"},{id:"skill",label:"Skills",importance:0.8,text:"plugin math code creativity time reflection"},{id:"nlp",label:"NLP",importance:0.8,text:"natural language speech pattern vocabulary tone"},{id:"schema",label:"Neural Schema",importance:0.85,text:"neural graph nodes edges activation hebbian learning"}];for(const s of seeds)if(!this.nodes.has(s.id))this.addNode(s.id,s);const ce=[["pawan","leika",_REL.CREATOR,1.0],["leika","emotion",_REL.PART_OF,0.9],["leika","conscience",_REL.PART_OF,0.9],["leika","memory",_REL.PART_OF,0.9],["leika","skill",_REL.PART_OF,0.85],["leika","nlp",_REL.PART_OF,0.85],["leika","schema",_REL.PART_OF,0.85],["memory","schema",_REL.RELATED,0.8],["nlp","schema",_REL.ASSOCIATED,0.7],["emotion","conscience",_REL.ASSOCIATED,0.7]];for(const[s,t,tp,w]of ce)if(!this.edges.has(`${s}::${tp}::${t}`))this.connect(s,t,tp,w);}
   _autoSave(){clearTimeout(this._st);this._st=setTimeout(()=>this._save(),2000);}
-  _save(){try{const d={nodes:Object.fromEntries([...this.nodes.entries()].map(([k,v])=>[k,v.toJSON()])),edges:Object.fromEntries([...this.edges.entries()].map(([k,v])=>[k,v.toJSON()]))};const json=JSON.stringify(d);if(json.length<4000000)localStorage.setItem("leika_schema",json);}catch(e){}}
-  _load(){try{const raw=localStorage.getItem("leika_schema");if(!raw)return;const d=JSON.parse(raw);for(const[id,nd]of Object.entries(d.nodes||{})){const n=SchemaNode.fromJSON(nd);this.nodes.set(id,n);if(!this.adj.has(id))this.adj.set(id,new Set());}for(const[k,ed]of Object.entries(d.edges||{})){const e=SchemaEdge.fromJSON(ed);this.edges.set(k,e);this.adj.get(e.source)?.add(e.target);}}catch(e){}}
+  async _save(){
+    try{
+      const d={nodes:Object.fromEntries([...this.nodes.entries()].map(([k,v])=>[k,v.toJSON()])),edges:Object.fromEntries([...this.edges.entries()].map(([k,v])=>[k,v.toJSON()]))};
+      const json=JSON.stringify(d);
+      const enc=await CryptoLayer.encrypt(json);
+      const limit=1000000;
+      const chunks=Math.ceil(enc.length/limit);
+      localStorage.setItem("leika_schema_chunks", chunks);
+      for(let i=0;i<chunks;i++) localStorage.setItem("leika_schema_"+i, enc.substring(i*limit,(i+1)*limit));
+    }catch(e){console.error("Schema save fail", e)}
+  }
+  async _load(){
+    try{
+      const chunks = parseInt(localStorage.getItem("leika_schema_chunks")||"0");
+      let enc = chunks > 0 ? "" : localStorage.getItem("leika_schema");
+      for(let i=0; i<chunks; i++) enc += (localStorage.getItem("leika_schema_"+i)||"");
+      if(!enc) return;
+      const raw = chunks > 0 ? await CryptoLayer.decrypt(enc) : enc; // handle existing unencrypted optionally, or just decrypt if it was encrypted. Wait! If previously unencrypted JSON, decrypt will fail. So Let's try parsing first.
+      let d;
+      try { d=JSON.parse(enc); } catch(x) { d=JSON.parse(await CryptoLayer.decrypt(enc)); }
+      for(const[id,nd]of Object.entries(d.nodes||{})){const n=SchemaNode.fromJSON(nd);this.nodes.set(id,n);if(!this.adj.has(id))this.adj.set(id,new Set());}
+      for(const[k,ed]of Object.entries(d.edges||{})){const e=SchemaEdge.fromJSON(ed);this.edges.set(k,e);this.adj.get(e.source)?.add(e.target);}
+    }catch(e){console.error("Schema load fail", e)}
+  }
   clear(){this.nodes.clear();this.edges.clear();this.adj.clear();localStorage.removeItem("leika_schema");this._seed();}
   onChange(l){this._listeners.push(l);}
   _notify(ev,d){this._listeners.forEach(l=>l(ev,d));}
@@ -757,6 +827,7 @@ class LEIKA {
   on(e,l){ if(this._L[e])this._L[e].push(l); return()=>{if(this._L[e])this._L[e]=this._L[e].filter(x=>x!==l);}; }
   _fire(e,d){ (this._L[e]||[]).forEach(l=>l(d)); }
   async _awaken(){
+    await this.schema.init(); // Initialize and decrypt schema
     this.emotion.set("calm",0.6);
     await Promise.all([
       this.memory.learn({concept:"self",content:"I am L.E.I.K.A. — Learning Emotional Intelligence Knowledge Assistant",confidence:1.0}),
