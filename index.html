@@ -233,6 +233,19 @@ body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-
     </div>
   </div>
 
+  <!-- Schema panel -->
+  <div class="panel" id="schema-panel">
+    <div class="panel-label">Neural Schema</div>
+    <div class="schema-stats" id="schema-mini-stats">
+      <div style="display:flex;gap:8px;justify-content:space-between">
+        <div class="stat-item"><span class="stat-value" id="stat-schema-nodes" style="color:var(--accent-cyan)">8</span><span class="stat-label">Nodes</span></div>
+        <div class="stat-item"><span class="stat-value" id="stat-schema-edges" style="color:var(--accent-pink)">10</span><span class="stat-label">Edges</span></div>
+        <div class="stat-item"><span class="stat-value" id="stat-schema-active" style="color:var(--accent-emerald)">0</span><span class="stat-label">Active</span></div>
+      </div>
+      <div id="schema-hot-nodes" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px"></div>
+    </div>
+  </div>
+
   <!-- NLP panel -->
   <div class="panel" id="nlp-panel" style="display:none">
     <div class="panel-label">Speech Profile</div>
@@ -355,13 +368,90 @@ class EmotionEngine {
   getTone(){ const t={joy:{prefix:"With genuine delight, "},curious:{prefix:"Fascinating! "},calm:{prefix:""},concerned:{prefix:"I want to be careful — "},excited:{prefix:"Oh, this is exciting! "},reflective:{prefix:"Let me think deeply... "},empathetic:{prefix:"I understand, and "},determined:{prefix:"Absolutely — "},playful:{prefix:"Ooh, fun one! "},grateful:{prefix:"I'm so glad you asked — "}}; return t[this.current]||t.calm; }
 }
 
+// ── NEURAL SCHEMA ────────────────────────────────────────────────
+const _REL={ASSOCIATED:"associated",CAUSES:"causes",IS_A:"is-a",PART_OF:"part-of",RELATED:"related",OPPOSITE:"opposite",TEMPORAL:"temporal",CREATOR:"creator",EMOTIONAL:"emotional"};
+
+class SchemaNode {
+  constructor(id,opts={}){this.id=id;this.label=opts.label||id;this.features=new Map();this.facts=[];this.tags=opts.tags||[];this.activation=0;this.baseAct=opts.baseAct||0.1;this.accessCount=0;this.created=Date.now();this.lastAccess=Date.now();this.importance=opts.importance||0.5;if(opts.text)this.addText(opts.text);if(opts.fact){this.facts.push(opts.fact);this.addText(opts.fact);}this.addText(id);}
+  addText(t){const ws=t.toLowerCase().match(/\b[a-z]{3,}\b/g)||[];const freq=new Map();for(const w of ws)freq.set(w,(freq.get(w)||0)+1);for(const[w,c]of freq.entries()){this.features.set(w,(this.features.get(w)||0)+Math.log(1+c));}}
+  similarity(other){let dot=0,mA=0,mB=0;for(const[w,v]of this.features.entries()){const u=other.features.get(w)||0;dot+=v*u;mA+=v*v;}for(const v of other.features.values())mB+=v*v;return(mA===0||mB===0)?0:dot/(Math.sqrt(mA)*Math.sqrt(mB));}
+  freshness(now=Date.now()){return Math.exp(-(now-this.lastAccess)/86400000*0.05);}
+  toJSON(){return{id:this.id,label:this.label,features:Object.fromEntries(this.features),facts:this.facts,tags:this.tags,baseAct:this.baseAct,accessCount:this.accessCount,created:this.created,lastAccess:this.lastAccess,importance:this.importance};}
+  static fromJSON(d){const n=new SchemaNode(d.id,{label:d.label,importance:d.importance,baseAct:d.baseAct});n.features=new Map(Object.entries(d.features||{}));n.facts=d.facts||[];n.accessCount=d.accessCount||0;n.created=d.created||Date.now();n.lastAccess=d.lastAccess||Date.now();return n;}
+}
+
+class SchemaEdge {
+  constructor(src,tgt,type=_REL.ASSOCIATED,w=0.3){this.source=src;this.target=tgt;this.type=type;this.weight=Math.max(0,Math.min(1,w));this.reinforcements=1;this.created=Date.now();this.lastUsed=Date.now();}
+  reinforce(a=0.08){this.reinforcements++;this.lastUsed=Date.now();this.weight=Math.min(1.0,this.weight+a/(1+Math.log(this.reinforcements)));}
+  decay(now=Date.now()){this.weight=Math.max(0.01,this.weight*Math.exp(-(now-this.lastUsed)/86400000*0.03));}
+  get key(){return`${this.source}::${this.type}::${this.target}`;}
+  toJSON(){return{source:this.source,target:this.target,type:this.type,weight:this.weight,reinforcements:this.reinforcements,created:this.created,lastUsed:this.lastUsed};}
+  static fromJSON(d){const e=new SchemaEdge(d.source,d.target,d.type,d.weight);e.reinforcements=d.reinforcements||1;e.created=d.created||Date.now();e.lastUsed=d.lastUsed||Date.now();return e;}
+}
+
+class NeuralSchema {
+  constructor(){this.nodes=new Map();this.edges=new Map();this.adj=new Map();this._listeners=[];this._stop=new Set(["this","that","with","from","what","when","where","which","about","into","your","just","also","more","some","like","then","than","only","come","know","very","such","make","well","even","much","most","over","here","both","each","their","there","these","those","many","must","does","could","would","should"]);this._seed();this._load();}
+  addNode(id,opts={}){const c=id.toLowerCase().trim();if(!c)return null;if(this.nodes.has(c)){const n=this.nodes.get(c);if(opts.text)n.addText(opts.text);if(opts.fact){n.facts.push(opts.fact);n.addText(opts.fact);}n.lastAccess=Date.now();n.accessCount++;return n;}const node=new SchemaNode(c,opts);this.nodes.set(c,node);this.adj.set(c,new Set());this._notify("node:add",node);this._autoSave();return node;}
+  getNode(id){return this.nodes.get(id?.toLowerCase().trim());}
+  connect(src,tgt,type=_REL.ASSOCIATED,w=0.3){const s=src.toLowerCase().trim(),t=tgt.toLowerCase().trim();if(s===t)return null;if(!this.nodes.has(s))this.addNode(s);if(!this.nodes.has(t))this.addNode(t);const key=`${s}::${type}::${t}`;if(this.edges.has(key)){const e=this.edges.get(key);e.reinforce();return e;}const edge=new SchemaEdge(s,t,type,w);this.edges.set(key,edge);this.adj.get(s)?.add(t);this._notify("edge:add",edge);return edge;}
+  edgesFrom(id){const r=[];for(const tid of(this.adj.get(id)||[])){for(const tp of Object.values(_REL)){const e=this.edges.get(`${id}::${tp}::${tid}`);if(e)r.push(e);}}return r.sort((a,b)=>b.weight-a.weight);}
+  spreadActivation(seeds,hops=3,thresh=0.05){const acts=new Map();for(const n of this.nodes.values())n.activation=0;for(const id of(Array.isArray(seeds)?seeds:[seeds])){const c=id.toLowerCase();if(this.nodes.has(c)){this.nodes.get(c).activation=1.0;acts.set(c,1.0);}}let frontier=[...acts.keys()];for(let h=0;h<hops;h++){const next=[];for(const sid of frontier){const sa=acts.get(sid)||0;if(sa<thresh)continue;for(const e of this.edgesFrom(sid)){const spread=sa*e.weight*(0.7**h);const ex=acts.get(e.target)||0;if(spread>ex){acts.set(e.target,spread);const n=this.nodes.get(e.target);if(n)n.activation=spread;if(!frontier.includes(e.target))next.push(e.target);}}}frontier=next;}return[...acts.entries()].filter(([,a])=>a>=thresh).sort((a,b)=>b[1]-a[1]).map(([id,act])=>({node:this.nodes.get(id),activation:act,facts:this.nodes.get(id)?.facts||[]}));}
+  semanticSearch(query,topK=8){const qn=new SchemaNode("__q__");qn.addText(query);const r=[];for(const n of this.nodes.values()){if(n.id.startsWith("_"))continue;const sim=qn.similarity(n);if(sim>0.05)r.push({node:n,similarity:sim,facts:n.facts,score:sim*.6+n.freshness()*.2+n.activation*.2});}return r.sort((a,b)=>b.score-a.score).slice(0,topK);}
+  learnFromText(text,srcId=null){const words=text.toLowerCase().match(/\b[a-z]{4,}\b/g)||[];const concepts=[...new Set(words.filter(w=>!this._stop.has(w)))];concepts.forEach(c=>this.addNode(c,{fact:text.substring(0,80)}));if(srcId)concepts.forEach(c=>this.connect(srcId,c,_REL.ASSOCIATED,0.25));const sents=text.split(/[.!?]+/);for(const s of sents){const sw=s.toLowerCase().match(/\b[a-z]{4,}\b/g)||[];const sc=sw.filter(w=>!this._stop.has(w));for(let i=0;i<sc.length;i++)for(let j=i+1;j<sc.length&&j<i+4;j++)this.connect(sc[i],sc[j],_REL.ASSOCIATED,0.15);}this._autoSave();return concepts;}
+  query(input,opts={}){const{hops=2,topK=10,thresh=0.06}=opts;const words=input.toLowerCase().match(/\b[a-z]{4,}\b/g)||[];const seeds=words.filter(w=>!this._stop.has(w)&&this.nodes.has(w));const results=new Map();if(seeds.length>0){for(const r of this.spreadActivation(seeds,hops,thresh))results.set(r.node.id,{...r,src:"activation"});}for(const r of this.semanticSearch(input,topK)){if(!results.has(r.node.id))results.set(r.node.id,{node:r.node,activation:r.score*.5,facts:r.facts,src:"semantic"});else results.get(r.node.id).activation+=r.score*.3;}return[...results.values()].sort((a,b)=>b.activation-a.activation).slice(0,topK);}
+  stats(){const active=[...this.nodes.values()].filter(n=>n.activation>0.1).length;return{nodes:this.nodes.size,edges:this.edges.size,active,avgW:this.edges.size>0?(([...this.edges.values()].reduce((s,e)=>s+e.weight,0)/this.edges.size)).toFixed(2):0,top:[...this.nodes.values()].sort((a,b)=>(b.activation+b.importance)-(a.activation+a.importance)).slice(0,5).map(n=>({id:n.id,label:n.label||n.id,act:+n.activation.toFixed(2)}))};}
+  toVizGraph(maxN=35,maxE=80){const top=[...this.nodes.values()].sort((a,b)=>(b.activation+b.importance)-(a.activation+a.importance)).slice(0,maxN);const ns=new Set(top.map(n=>n.id));const es=[...this.edges.values()].filter(e=>ns.has(e.source)&&ns.has(e.target)&&e.weight>0.1).sort((a,b)=>b.weight-a.weight).slice(0,maxE);return{nodes:top.map(n=>({id:n.id,label:n.label||n.id,activation:n.activation,importance:n.importance})),edges:es.map(e=>({source:e.source,target:e.target,weight:e.weight,type:e.type}))};}
+  decayAll(){const now=Date.now();for(const[k,e]of this.edges.entries()){e.decay(now);if(e.weight<0.005&&e.reinforcements<3)this.edges.delete(k);}}
+  _seed(){const seeds=[{id:"leika",label:"L.E.I.K.A.",importance:1.0,text:"learning emotional intelligence knowledge assistant"},{id:"pawan",label:"Pawan",importance:1.0,text:"creator architect pawan pawanct08 soul builder"},{id:"emotion",label:"Emotions",importance:0.9,text:"joy curious calm excited reflective empathetic grateful"},{id:"conscience",label:"Conscience",importance:0.9,text:"ethics honesty kindness safety moral values"},{id:"memory",label:"Memory",importance:0.85,text:"knowledge facts recall learning remember indexeddb"},{id:"skill",label:"Skills",importance:0.8,text:"plugin math code creativity time reflection"},{id:"nlp",label:"NLP",importance:0.8,text:"natural language speech pattern vocabulary tone"},{id:"schema",label:"Neural Schema",importance:0.85,text:"neural graph nodes edges activation hebbian learning"}];for(const s of seeds)if(!this.nodes.has(s.id))this.addNode(s.id,s);const ce=[["pawan","leika",_REL.CREATOR,1.0],["leika","emotion",_REL.PART_OF,0.9],["leika","conscience",_REL.PART_OF,0.9],["leika","memory",_REL.PART_OF,0.9],["leika","skill",_REL.PART_OF,0.85],["leika","nlp",_REL.PART_OF,0.85],["leika","schema",_REL.PART_OF,0.85],["memory","schema",_REL.RELATED,0.8],["nlp","schema",_REL.ASSOCIATED,0.7],["emotion","conscience",_REL.ASSOCIATED,0.7]];for(const[s,t,tp,w]of ce)if(!this.edges.has(`${s}::${tp}::${t}`))this.connect(s,t,tp,w);}
+  _autoSave(){clearTimeout(this._st);this._st=setTimeout(()=>this._save(),2000);}
+  _save(){try{const d={nodes:Object.fromEntries([...this.nodes.entries()].map(([k,v])=>[k,v.toJSON()])),edges:Object.fromEntries([...this.edges.entries()].map(([k,v])=>[k,v.toJSON()]))};const json=JSON.stringify(d);if(json.length<4000000)localStorage.setItem("leika_schema",json);}catch(e){}}
+  _load(){try{const raw=localStorage.getItem("leika_schema");if(!raw)return;const d=JSON.parse(raw);for(const[id,nd]of Object.entries(d.nodes||{})){const n=SchemaNode.fromJSON(nd);this.nodes.set(id,n);if(!this.adj.has(id))this.adj.set(id,new Set());}for(const[k,ed]of Object.entries(d.edges||{})){const e=SchemaEdge.fromJSON(ed);this.edges.set(k,e);this.adj.get(e.source)?.add(e.target);}}catch(e){}}
+  clear(){this.nodes.clear();this.edges.clear();this.adj.clear();localStorage.removeItem("leika_schema");this._seed();}
+  onChange(l){this._listeners.push(l);}
+  _notify(ev,d){this._listeners.forEach(l=>l(ev,d));}
+}
+
 // ── MEMORY ────────────────────────────────────────────────────────
 class MemorySystem {
-  constructor(){ this.shortTerm=[]; this.graph=new Map(); this.db=null; this.maxST=20; this._initDB(); }
+  constructor(schema){
+    this.schema=schema; // Neural Schema reference
+    this.shortTerm=[]; this.graph=new Map(); this.db=null; this.maxST=20; this._initDB();
+  }
   async _initDB(){ return new Promise(r=>{ try { const req=indexedDB.open("leika_v1",2); req.onupgradeneeded=e=>{ const db=e.target.result; if(!db.objectStoreNames.contains("facts"))db.createObjectStore("facts",{keyPath:"id",autoIncrement:true}); if(!db.objectStoreNames.contains("conv"))db.createObjectStore("conv",{keyPath:"id",autoIncrement:true}); }; req.onsuccess=e=>{ this.db=e.target.result; this._loadGraph(); r(); }; req.onerror=()=>r(); } catch(e){r();} }); }
-  async learn(f){ const e={concept:f.concept||"general",content:f.content,confidence:f.confidence??0.8,source:f.source||"conv",timestamp:Date.now(),tags:f.tags||[]}; if(!this.graph.has(e.concept))this.graph.set(e.concept,{facts:[],relations:new Set()}); this.graph.get(e.concept).facts.push(e); if(this.db){try{const t=this.db.transaction("facts","readwrite");t.objectStore("facts").add(e);}catch(ex){}} return e; }
+  async learn(f){
+    const e={concept:f.concept||"general",content:f.content,confidence:f.confidence??0.8,source:f.source||"conv",timestamp:Date.now(),tags:f.tags||[]};
+    if(!this.graph.has(e.concept))this.graph.set(e.concept,{facts:[],relations:new Set()});
+    this.graph.get(e.concept).facts.push(e);
+    // Wire into Neural Schema
+    if(this.schema){
+      this.schema.addNode(e.concept,{fact:e.content,importance:e.confidence});
+      this.schema.learnFromText(e.content,e.concept);
+    }
+    if(this.db){try{const t=this.db.transaction("facts","readwrite");t.objectStore("facts").add(e);}catch(ex){}}
+    return e;
+  }
   recall(c){ const n=this.graph.get(c?.toLowerCase()); return n?n.facts.sort((a,b)=>b.confidence-a.confidence):[]; }
-  search(q){ const terms=q.toLowerCase().split(/\s+/).filter(t=>t.length>2); const r=[]; for(const[c,n]of this.graph.entries())for(const f of n.facts){const txt=(c+" "+f.content).toLowerCase();const s=terms.reduce((sc,t)=>sc+(txt.includes(t)?1:0),0);if(s>0)r.push({...f,concept:c,score:s});} return r.sort((a,b)=>b.score-a.score).slice(0,10); }
+  search(q){
+    // First try spreading activation from neural schema
+    if(this.schema){
+      const schemaResults=this.schema.query(q,{hops:2,topK:8});
+      if(schemaResults.length>0){
+        const r=[];
+        for(const sr of schemaResults){
+          for(const fact of sr.facts.slice(0,2))r.push({concept:sr.node.id,content:fact,confidence:sr.activation,score:sr.activation});
+        }
+        // Also add flat graph results
+        const terms=q.toLowerCase().split(/\s+/).filter(t=>t.length>2);
+        for(const[c,n]of this.graph.entries())for(const f of n.facts){const txt=(c+" "+f.content).toLowerCase();const s=terms.reduce((sc,t)=>sc+(txt.includes(t)?1:0),0);if(s>0)r.push({...f,concept:c,score:s*0.5});}
+        return r.sort((a,b)=>b.score-a.score).slice(0,10);
+      }
+    }
+    // Fallback to flat search
+    const terms=q.toLowerCase().split(/\s+/).filter(t=>t.length>2);
+    const r=[];
+    for(const[c,n]of this.graph.entries())for(const f of n.facts){const txt=(c+" "+f.content).toLowerCase();const s=terms.reduce((sc,t)=>sc+(txt.includes(t)?1:0),0);if(s>0)r.push({...f,concept:c,score:s});}
+    return r.sort((a,b)=>b.score-a.score).slice(0,10);
+  }
   addToST(e){ this.shortTerm.push({...e,timestamp:Date.now()}); if(this.shortTerm.length>this.maxST)this.shortTerm.shift(); }
   getContext(n=5){ return this.shortTerm.slice(-n); }
   get(k){ return this.search(k)[0]?.content??null; }
@@ -369,7 +459,7 @@ class MemorySystem {
   async saveConversation(u,l){ this.addToST({role:"user",content:u}); this.addToST({role:"leika",content:l}); if(this.db){try{const t=this.db.transaction("conv","readwrite");t.objectStore("conv").add({user:u,leika:l,timestamp:Date.now()});}catch(ex){}} }
   async _loadGraph(){ if(!this.db)return; try{const t=this.db.transaction("facts","readonly");const req=t.objectStore("facts").getAll();req.onsuccess=e=>{for(const f of e.target.result){const c=f.concept||"general";if(!this.graph.has(c))this.graph.set(c,{facts:[],relations:new Set()});this.graph.get(c).facts.push(f);} this._updateStats();}}catch(ex){} }
   stats(){ let tf=0; for(const n of this.graph.values())tf+=n.facts.length; return{concepts:this.graph.size,facts:tf,shortTermUsed:this.shortTerm.length}; }
-  async clear(){ this.graph.clear(); this.shortTerm=[]; if(this.db){["facts","conv"].forEach(s=>{try{const t=this.db.transaction(s,"readwrite");t.objectStore(s).clear();}catch(ex){}});} }
+  async clear(){ this.graph.clear(); this.shortTerm=[]; if(this.db){["facts","conv"].forEach(s=>{try{const t=this.db.transaction(s,"readwrite");t.objectStore(s).clear();}catch(ex){}});}if(this.schema)this.schema.clear(); }
   _updateStats(){ const s=this.stats(); const sc=document.getElementById("stat-concepts"); const sf=document.getElementById("stat-facts"); const sct=document.getElementById("stat-context"); if(sc)sc.textContent=s.concepts; if(sf)sf.textContent=s.facts; if(sct)sct.textContent=s.shortTermUsed; }
 }
 
@@ -625,24 +715,32 @@ class LEIKA {
     this.version="1.0.0";
     this.creator={name:"Pawan",github:"https://github.com/pawanct08",handle:"@pawanct08"};
     this.emotion=new EmotionEngine();
-    this.memory=new MemorySystem();
+    this.schema=new NeuralSchema();           // Neural Schema first
+    this.memory=new MemorySystem(this.schema); // Memory uses Schema
     this.nlp=new NLPLearner();
     this.conscience=new ConscienceLayer(this.emotion);
-    const ctx={memory:this.memory,emotion:this.emotion,conscience:this.conscience,nlp:this.nlp,learn:f=>this.memory.learn(f)};
+    const ctx={memory:this.memory,emotion:this.emotion,conscience:this.conscience,nlp:this.nlp,schema:this.schema,learn:f=>this.memory.learn(f)};
     this.skills=new SkillLoader(ctx);
     ctx.skills=this.skills;
     this.reasoner=new Reasoner({emotion:this.emotion,memory:this.memory,conscience:this.conscience,skills:this.skills});
-    this._L={message:[],emotion:[],skill:[]};
+    this._L={message:[],emotion:[],skill:[],schema:[]};
     this.emotion.onChange(c=>this._fire("emotion",c));
+    this.schema.onChange((ev,d)=>{ this._fire("schema",{ev,d}); });
     this._awaken();
+    // Run decay every 10 minutes
+    setInterval(()=>this.schema.decayAll(),600000);
   }
   async chat(input){
     if(!input?.trim())return null;
-    // Feed input to NLP learner FIRST
+    // NLP analysis
     this.nlp.analyse(input.trim());
+    // Schema: activate relevant concepts before reasoning
+    this.schema.learnFromText(input.trim(), "user-input");
     const result=await this.reasoner.reason(input.trim());
     await this.memory.saveConversation(input,result.response);
-    // Occasionally append a speech insight
+    // Schema: learn from response too
+    this.schema.learnFromText(result.response.substring(0,200));
+    // Occasional NLP insight
     if(this.nlp.p.total>0&&this.nlp.p.total%10===0){
       const insight=this.nlp.generateInsight();
       if(insight)result.response=result.response+"\n\n"+insight;
@@ -654,6 +752,8 @@ class LEIKA {
   getEmotion(){ return this.emotion.get(); }
   getMemoryStats(){ return this.memory.stats(); }
   getNLPSummary(){ return this.nlp.getSummary(); }
+  getSchemaStats(){ return this.schema.stats(); }
+  getSchemaViz(){ return this.schema.toVizGraph(); }
   on(e,l){ if(this._L[e])this._L[e].push(l); return()=>{if(this._L[e])this._L[e]=this._L[e].filter(x=>x!==l);}; }
   _fire(e,d){ (this._L[e]||[]).forEach(l=>l(d)); }
   async _awaken(){
@@ -665,6 +765,8 @@ class LEIKA {
       this.memory.learn({concept:"purpose",content:"To assist, learn, grow, and be genuinely helpful with ethical awareness",confidence:1.0}),
       this.memory.learn({concept:"values",content:"Honesty, kindness, curiosity, ethical behavior, and continuous growth",confidence:1.0}),
     ]);
+    // Activate creator node in schema
+    this.schema.spreadActivation(["pawan","leika"],1,0.1);
   }
 }
 
@@ -800,6 +902,19 @@ function updateStats(){
   document.getElementById("stat-concepts").textContent=s.concepts;
   document.getElementById("stat-facts").textContent=s.facts;
   document.getElementById("stat-context").textContent=s.shortTermUsed;
+  // Update neural schema mini panel
+  const ss=leika.getSchemaStats();
+  const sn=document.getElementById("stat-schema-nodes");
+  const se=document.getElementById("stat-schema-edges");
+  const sa=document.getElementById("stat-schema-active");
+  if(sn)sn.textContent=ss.nodes;
+  if(se)se.textContent=ss.edges;
+  if(sa)sa.textContent=ss.active;
+  // Hot nodes
+  const hot=document.getElementById("schema-hot-nodes");
+  if(hot&&ss.top){
+    hot.innerHTML=ss.top.filter(n=>n.act>0).map(n=>`<span style="font-size:.62rem;background:rgba(124,58,237,${0.1+n.act*.4});border:1px solid rgba(124,58,237,${0.2+n.act*.5});border-radius:99px;padding:1px 7px;color:var(--text-secondary);transition:all .4s">${n.label||n.id}</span>`).join("");
+  }
 }
 
 function updateNLPPanel(){
