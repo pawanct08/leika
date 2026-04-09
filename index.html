@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>L.E.I.K.A. — Learning Emotional Intelligence Knowledge Assistant</title>
+  <meta name="description" content="L.E.I.K.A. is a self-learning AI assistant with emotional intelligence, a conscience, and a pluggable skill system. She grows smarter with every conversation." />
+  <meta property="og:title" content="L.E.I.K.A. — Self-Learning AI Assistant" />
+  <meta property="og:description" content="Meet Leika — the AI that learns, feels, and grows." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="src/styles/main.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ NEURAL CANVAS ══ -->
+<canvas id="neural-canvas" aria-hidden="true"></canvas>
+
+<!-- ═══════════════════════════════════════════ SIDEBAR ══════════ -->
+<aside id="sidebar" role="complementary" aria-label="Leika status panel">
+  <div class="sidebar-header">
+    <div class="leika-avatar" id="leika-avatar" aria-label="Leika avatar">
+      <div class="avatar-ring"></div>
+      <div class="avatar-core">
+        <span class="avatar-symbol">✦</span>
+      </div>
+      <div class="avatar-pulse"></div>
+    </div>
+    <div class="leika-identity">
+      <h1 class="leika-name">L.E.I.K.A.</h1>
+      <p class="leika-subtitle">Self-Learning AI</p>
+    </div>
+  </div>
+
+  <!-- Emotion display -->
+  <div class="panel emotion-panel" id="emotion-panel">
+    <div class="panel-label">Current Emotion</div>
+    <div class="emotion-state" id="emotion-state">
+      <span class="emotion-icon" id="emotion-icon">🌊</span>
+      <span class="emotion-name" id="emotion-name">Calm</span>
+    </div>
+    <div class="emotion-bar-wrap">
+      <div class="emotion-bar" id="emotion-bar"></div>
+    </div>
+    <div class="emotion-intensity" id="emotion-intensity">Intensity: 60%</div>
+  </div>
+
+  <!-- Memory stats -->
+  <div class="panel memory-panel" id="memory-panel">
+    <div class="panel-label">Memory</div>
+    <div class="memory-stats">
+      <div class="stat-item">
+        <span class="stat-value" id="stat-concepts">0</span>
+        <span class="stat-label">Concepts</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" id="stat-facts">0</span>
+        <span class="stat-label">Facts</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" id="stat-context">0</span>
+        <span class="stat-label">Context</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skills -->
+  <div class="panel skills-panel">
+    <div class="panel-label">Active Skills</div>
+    <div class="skills-list" id="skills-list">
+      <!-- Populated dynamically -->
+    </div>
+    <button class="add-skill-btn" id="add-skill-btn" title="Load a skill from URL">
+      <span>+</span> Add Skill
+    </button>
+  </div>
+
+  <!-- Conscience indicator -->
+  <div class="panel conscience-panel" id="conscience-panel">
+    <div class="panel-label">Conscience</div>
+    <div class="conscience-status" id="conscience-status">
+      <span class="conscience-dot active"></span>
+      <span>Active & Watching</span>
+    </div>
+    <div class="conscience-values">
+      <div class="value-bar-row"><span>Honesty</span><div class="value-fill" style="width:100%"></div></div>
+      <div class="value-bar-row"><span>Kindness</span><div class="value-fill" style="width:100%"></div></div>
+      <div class="value-bar-row"><span>Safety</span><div class="value-fill" style="width:100%"></div></div>
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <span class="version-badge">v1.0.0</span>
+    <a href="https://github.com/your-username/leika" target="_blank" rel="noopener" class="github-link" id="github-link">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.741 0 .267.18.579.688.481C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+      </svg>
+      GitHub
+    </a>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════════ MAIN CHAT ════════ -->
+<main id="main-content" role="main">
+
+  <!-- Top bar -->
+  <header class="topbar" id="topbar">
+    <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="true">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="topbar-title">
+      <span class="topbar-name">Leika</span>
+      <span class="topbar-status" id="topbar-status">
+        <span class="status-dot"></span> Self-Learning Mode
+      </span>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="clear-btn" title="Clear conversation">🗑️</button>
+      <button class="icon-btn" id="memory-btn" title="View memory">🧠</button>
+    </div>
+  </header>
+
+  <!-- Chat messages -->
+  <section class="chat-container" id="chat-container" aria-label="Conversation" aria-live="polite">
+    <!-- Welcome card -->
+    <div class="welcome-card" id="welcome-card">
+      <div class="welcome-glow"></div>
+      <div class="welcome-icon">✦</div>
+      <h2 class="welcome-title">Hello, I'm Leika.</h2>
+      <p class="welcome-desc">
+        <strong>L</strong>earning <strong>E</strong>motional <strong>I</strong>ntelligence <strong>K</strong>nowledge <strong>A</strong>ssistant
+      </p>
+      <p class="welcome-sub">I think. I feel. I grow with every conversation.</p>
+      <div class="welcome-suggestions">
+        <button class="suggestion-chip" data-msg="Who are you, Leika?">Who are you?</button>
+        <button class="suggestion-chip" data-msg="What can you do?">What can you do?</button>
+        <button class="suggestion-chip" data-msg="How do you feel right now?">How do you feel?</button>
+        <button class="suggestion-chip" data-msg="Are you conscious?">Are you conscious?</button>
+        <button class="suggestion-chip" data-msg="write a poem about existence">Write a poem</button>
+        <button class="suggestion-chip" data-msg="what time is it">What time is it?</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Input area -->
+  <footer class="input-area" id="input-area">
+    <div class="input-wrap">
+      <textarea
+        id="chat-input"
+        class="chat-input"
+        placeholder="Talk to Leika..."
+        rows="1"
+        aria-label="Message input"
+        autocomplete="off"
+        spellcheck="true"
+      ></textarea>
+      <button class="send-btn" id="send-btn" aria-label="Send message" title="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </div>
+    <div class="input-footer-info">
+      <span id="thinking-indicator" class="thinking-hidden">
+        <span class="thinking-dots"><span></span><span></span><span></span></span>
+        Leika is thinking...
+      </span>
+      <span class="input-hint">Press Enter to send · Shift+Enter for new line</span>
+    </div>
+  </footer>
+</main>
+
+<!-- ═══════════════════════════════════════════ SKILL MODAL ═════ -->
+<div class="modal-overlay" id="skill-modal-overlay" role="dialog" aria-modal="true" aria-label="Add skill" hidden>
+  <div class="modal" id="skill-modal">
+    <div class="modal-header">
+      <h3>🔌 Load a Skill</h3>
+      <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
+    </div>
+    <p class="modal-desc">Enter the URL of a JavaScript skill module (ES module with default export).</p>
+    <input type="url" id="skill-url-input" class="modal-input" placeholder="https://example.com/skills/my-skill.js" />
+    <div class="modal-actions">
+      <button class="modal-btn secondary" id="modal-cancel">Cancel</button>
+      <button class="modal-btn primary" id="modal-load">Load Skill</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ MEMORY MODAL ════ -->
+<div class="modal-overlay" id="memory-modal-overlay" role="dialog" aria-modal="true" aria-label="Memory viewer" hidden>
+  <div class="modal modal-wide" id="memory-modal">
+    <div class="modal-header">
+      <h3>🧠 Leika's Memory</h3>
+      <button class="modal-close" id="memory-modal-close" aria-label="Close">✕</button>
+    </div>
+    <div id="memory-content" class="memory-content"></div>
+    <div class="modal-actions">
+      <button class="modal-btn danger" id="clear-memory-btn">Clear All Memory</button>
+      <button class="modal-btn secondary" id="memory-modal-cancel">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ SCRIPTS ══════════ -->
+<script type="module" src="src/ui/app.js"></script>
+
+</body>
+</html>
