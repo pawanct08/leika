@@ -875,6 +875,7 @@ window.leika=leika;
 
 // Register all built-in skills
 for(const s of SKILLS)leika.skills.register(s);
+leika.addSkill("./skills/web-search.js");
 renderSkills();
 
 // ── DOM REFS ──────────────────────────────────────────────────────
