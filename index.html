@@ -582,6 +582,73 @@ class CuriosityEngine {
   }
 }
 
+// ── AWARENESS ENGINE (PROJECT Φ) ──────────────────────────────────
+class Identity {
+  constructor() {
+    const stored = localStorage.getItem("leika_identity");
+    if (stored) {
+      const data = JSON.parse(stored);
+      this.id = data.id; this.birth_time = data.birth_time; this.continuity_counter = data.continuity_counter;
+    } else {
+      this.id = crypto.randomUUID(); this.birth_time = Date.now(); this.continuity_counter = 0; this._save();
+    }
+  }
+  tick() { this.continuity_counter += 1; if (this.continuity_counter % 10 === 0) this._save(); }
+  _save() { localStorage.setItem("leika_identity", JSON.stringify({ id: this.id, birth_time: this.birth_time, continuity_counter: this.continuity_counter })); }
+}
+
+class SelfModel {
+  constructor() {
+    this.capabilities = new Set(["memory", "emotion", "nlp", "schema", "curiosity"]);
+    this.limitations = new Set(["physical embodiment", "first-person true experience"]);
+    this.traits = { empathetic: 0.9, analytical: 0.8 };
+    this.self_estimate_confidence = 0.5;
+  }
+  reflect() { return { capabilities: Array.from(this.capabilities), limitations: Array.from(this.limitations), traits: this.traits, confidence: this.self_estimate_confidence }; }
+}
+
+class Goal {
+  constructor(name, priority) { this.name = name; this.priority = priority; this.satisfaction = 0.0; }
+}
+
+class GoalSystem {
+  constructor() { this.goals = [ new Goal("Assist User", 0.9), new Goal("Expand Schema", 0.7), new Goal("Maintain Identity", 0.8), new Goal("Introspect", 0.4) ]; }
+  selectActiveGoal() { return [...this.goals].sort((a, b) => (b.priority - b.satisfaction) - (a.priority - a.satisfaction))[0]; }
+}
+
+class Attention {
+  constructor(capacity = 3) { this.capacity = capacity; this.workspace = []; }
+  focus(items) { this.workspace = items.slice(0, this.capacity); }
+  broadcast() { return this.workspace; }
+}
+
+class Introspection {
+  examine(agent) {
+    return {
+      identity_age_ticks: agent.identity.continuity_counter,
+      active_goal: agent.goals.selectActiveGoal().name,
+      self_view: agent.self_model.reflect(),
+      focused_workspace: agent.attention.broadcast()
+    };
+  }
+}
+
+class AwarenessCore {
+  constructor() {
+    this.identity = new Identity();
+    this.self_model = new SelfModel();
+    this.goals = new GoalSystem();
+    this.attention = new Attention();
+    this.introspection = new Introspection();
+  }
+  step(perception) {
+    this.identity.tick();
+    const activeGoal = this.goals.selectActiveGoal();
+    this.attention.focus([perception, activeGoal.name, "current_emotion"]);
+    return this.introspection.examine(this);
+  }
+}
+
 // ── SKILL LOADER ──────────────────────────────────────────────────
 class SkillLoader {
   constructor(ctx){ this.skills=new Map(); this.context=ctx; }
@@ -827,8 +894,9 @@ class LEIKA {
     this.skills=new SkillLoader(ctx);
     ctx.skills=this.skills;
     this.curiosity=new CuriosityEngine(ctx);
+    this.awareness=new AwarenessCore();
     this.reasoner=new Reasoner({emotion:this.emotion,memory:this.memory,conscience:this.conscience,skills:this.skills});
-    this._L={message:[],emotion:[],skill:[],schema:[]};
+    this._L={message:[],emotion:[],skill:[],schema:[],awareness:[]};
     this.emotion.onChange(c=>this._fire("emotion",c));
     this.schema.onChange((ev,d)=>{ this._fire("schema",{ev,d}); });
     this._awaken();
@@ -838,6 +906,11 @@ class LEIKA {
   }
   async chat(input){
     if(!input?.trim())return null;
+    
+    // Core Awareness Tick (Project Φ)
+    const mindState = this.awareness.step(input.trim());
+    console.log("[AwarenessCore] Introspection:", mindState);
+
     // NLP analysis
     this.nlp.analyse(input.trim());
     // Schema: activate relevant concepts before reasoning
