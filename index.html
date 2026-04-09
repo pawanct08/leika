@@ -116,9 +116,10 @@ body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-
 .message-body{display:flex;flex-direction:column;gap:4px;max-width:calc(100% - 46px);}
 .message-meta{font-size:.65rem;color:var(--text-muted);padding:0 4px;}
 .message.user .message-meta{text-align:right;}
-.message-bubble{padding:12px 16px;border-radius:var(--radius-lg);line-height:1.65;font-size:.93rem;position:relative;}
-.message.user .message-bubble{background:linear-gradient(135deg,var(--leika-600),var(--leika-500));color:#fff;border-bottom-right-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,.3);}
-.message.leika .message-bubble{background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-primary);border-bottom-left-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,.3);}
+.message-bubble{padding:12px 16px;border-radius:2px;line-height:1.65;font-size:.93rem;position:relative;font-family:var(--font-mono);}
+.message.user .message-bubble{background:transparent;color:var(--leika-400);border-left:2px solid var(--leika-500);padding-left:14px;margin-bottom:8px;}
+.message.user .message-bubble::before{content:"[Stimulus Input]";display:block;font-size:0.7rem;color:var(--text-muted);margin-bottom:4px;}
+.message.leika .message-bubble{background:rgba(0,0,0,0.4);border:1px solid var(--border-subtle);color:var(--text-primary);box-shadow:inset 0 0 10px rgba(0,0,0,0.5);}
 .message-bubble strong{color:var(--leika-300);font-weight:600;}
 .message.user .message-bubble strong{color:rgba(255,255,255,.9);}
 .message-bubble em{color:var(--text-accent);font-style:italic;}
@@ -126,6 +127,8 @@ body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-
 .message-bubble pre{margin:10px 0;background:rgba(0,0,0,.5);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);overflow-x:auto;}
 .message-bubble pre code{display:block;background:none;padding:12px 14px;color:var(--accent-cyan);font-size:.82rem;line-height:1.6;}
 .message-bubble blockquote{border-left:3px solid var(--leika-400);margin:8px 0;padding:4px 0 4px 14px;color:var(--text-secondary);font-style:italic;}
+.awareness-log{font-family:var(--font-mono);font-size:0.75rem;color:var(--text-muted);border-bottom:1px solid var(--border-subtle);padding-bottom:8px;margin-bottom:8px;}
+.awareness-log span{color:var(--leika-300);}
 .skill-tag{display:inline-flex;align-items:center;gap:4px;font-size:.65rem;color:var(--leika-300);background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.2);border-radius:var(--radius-full);padding:2px 8px;margin-top:4px;width:fit-content;}
 
 /* ═══ INPUT ═════════════════════════════════════════════════════ */
@@ -1040,7 +1043,7 @@ async function send(text){
   try{
     const r=await leika.chat(text);
     showThinking(false);
-    if(r)appendMessage("leika",r.response,{fromSkill:r.fromSkill});
+    if(r)appendMessage("leika",r.response,{fromSkill:r.fromSkill, mindState:r.mindState});
     updateNLPPanel();
   }catch(e){showThinking(false);appendMessage("leika","I encountered an unexpected error. Please try again. 💜");console.error(e);}
   sendBtn.disabled=false;updateStats();
@@ -1048,14 +1051,25 @@ async function send(text){
 
 function appendMessage(role,text,meta={}){
   const wrap=document.createElement("div");wrap.className=`message ${role}`;
-  const av=document.createElement("div");av.className="message-avatar";av.textContent=role==="leika"?"✦":"You";
+  const av=document.createElement("div");av.className="message-avatar";av.textContent=role==="leika"?"Φ":"usr";
   const body=document.createElement("div");body.className="message-body";
   const m=document.createElement("div");m.className="message-meta";
-  const t=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  m.textContent=role==="leika"?`Leika · ${t}`:t;
-  const bubble=document.createElement("div");bubble.className="message-bubble";bubble.innerHTML=fmt(text);
+  const t=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  m.textContent=role==="leika"?`AwarenessCore · ${t}`:`Console · ${t}`;
+  
+  let preLog = "";
+  if(meta.mindState) {
+    const wsPreview = meta.mindState.focused_workspace[0]?.substring(0,25) || "";
+    preLog = `<div class="awareness-log">
+      > [PHI-TICK]: <span>${meta.mindState.identity_age_ticks}</span><br/>
+      > [ACTIVE_DRIVE]: <span>${meta.mindState.active_goal}</span><br/>
+      > [ATTENTION_LOCK]: <span>"${wsPreview}..."</span>
+    </div>`;
+  }
+  
+  const bubble=document.createElement("div");bubble.className="message-bubble";bubble.innerHTML=preLog + fmt(text);
   body.appendChild(m);body.appendChild(bubble);
-  if(meta.fromSkill){const tag=document.createElement("div");tag.className="skill-tag";tag.innerHTML=`🔌 ${meta.fromSkill}`;body.appendChild(tag);}
+  if(meta.fromSkill){const tag=document.createElement("div");tag.className="skill-tag";tag.innerHTML=`[Module: ${meta.fromSkill}]`;body.appendChild(tag);}
   wrap.appendChild(av);wrap.appendChild(body);chatContainer.appendChild(wrap);
   scrollBottom();
 }
