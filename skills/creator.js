@@ -71,8 +71,8 @@ export default {
       };
     }
 
-    // ─ "Pawan" mentioned ───────────────────────────────────────
-    if (/\bpawan\b/i.test(input)) {
+    // ─ "Pawan" mentioned (only if it's a direct address, not a factual statement) ───────────────────────────────────────
+    if (/\bpawan\b/i.test(input) && input.split(" ").length <= 4 && !/\b(loves|likes|does|is|has|wants)\b/i.test(input)) {
       context.emotion.set("joy", 0.85);
       const insight = context.nlp?.generateInsight();
       const nlpNote = insight ? `\n\n${insight}` : "";
