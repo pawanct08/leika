@@ -60,14 +60,44 @@ export class Reasoner {
       }
     }
 
-    // 4. Search memory
+    // 4. Try the Advanced Layered LLM Pipeline (Leika Core V2)
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); 
+      const res = await fetch("http://localhost:3000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: input, emotion: this.emotion.get().state }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        // If it used the mock, we can gracefully fallback or use the mock message
+        if (data.success && data.response) {
+           const tone = this.emotion.getTone();
+           const learnedFact = await this._learnFromExchange(input, data.response);
+           return {
+             response: tone.prefix + data.response,
+             emotion: this.emotion.get().state,
+             learnedFact,
+             fromSkill: `Layered LLM (${data.domain})`
+           };
+        }
+      }
+    } catch (err) {
+      console.warn("[Reasoner] Layered Backend unreachable. Falling back to local logic.");
+    }
+
+    // 5. Search memory
     const memories = this.memory.search(input);
     const context = this.memory.getContext(4);
 
-    // 5. Generate response
+    // 6. Generate response
     const response = this._generateResponse(input, memories, context, ethicsCheck);
 
-    // 6. Learn from this exchange
+    // 7. Learn from this exchange
     const learnedFact = await this._learnFromExchange(input, response);
 
     return {

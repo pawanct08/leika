@@ -8,6 +8,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ── LAYERED LLM ORCHESTRATOR ───────────────────────────────────────────
+const LeikaLayeredLLM = require('./layered_llm');
+// Use Mock if no key, else use LangChain LLM (placeholder for OpenAI/Gemini/Anthropic)
+let llmInstance = null; 
+// Example: const { ChatOpenAI } = require("@langchain/openai");
+// if(process.env.OPENAI_API_KEY) llmInstance = new ChatOpenAI({ temperature: 0.2 });
+
+const leikaMind = new LeikaLayeredLLM(llmInstance);
+
 // ── ARCHITECTURAL CONNECTIONS ──────────────────────────────────────────
 // Represents the hyperscale backend. In production, these connect to massive DBs.
 const graphDriver = neo4j.driver(
@@ -22,6 +31,23 @@ const pinecone = new Pinecone({
 const pIndex = pinecone.index('leika-internet-archive');
 
 // ── ROUTES ─────────────────────────────────────────────────────────────
+
+app.post('/api/chat', async (req, res) => {
+  const { message, emotion } = req.body;
+  if(!message) return res.status(400).json({error: "No message provided"});
+  
+  try {
+    const result = await leikaMind.process(message, emotion || "calm");
+    res.json({
+      success: true,
+      domain: result.domain_used,
+      response: result.response
+    });
+  } catch(e) {
+    console.error("LLM Error:", e);
+    res.status(500).json({ error: "Layered AI failed to respond." });
+  }
+});
 
 app.post('/api/subconscious/query', async (req, res) => {
   const { concepts } = req.body;
