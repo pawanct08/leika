@@ -233,19 +233,6 @@ body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-
     </div>
   </div>
 
-  <!-- Schema panel -->
-  <div class="panel" id="schema-panel">
-    <div class="panel-label">Neural Schema</div>
-    <div class="schema-stats" id="schema-mini-stats">
-      <div style="display:flex;gap:8px;justify-content:space-between">
-        <div class="stat-item"><span class="stat-value" id="stat-schema-nodes" style="color:var(--accent-cyan)">8</span><span class="stat-label">Nodes</span></div>
-        <div class="stat-item"><span class="stat-value" id="stat-schema-edges" style="color:var(--accent-pink)">10</span><span class="stat-label">Edges</span></div>
-        <div class="stat-item"><span class="stat-value" id="stat-schema-active" style="color:var(--accent-emerald)">0</span><span class="stat-label">Active</span></div>
-      </div>
-      <div id="schema-hot-nodes" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px"></div>
-    </div>
-  </div>
-
   <!-- NLP panel -->
   <div class="panel" id="nlp-panel" style="display:none">
     <div class="panel-label">Speech Profile</div>
@@ -973,19 +960,6 @@ function updateStats(){
   document.getElementById("stat-concepts").textContent=s.concepts;
   document.getElementById("stat-facts").textContent=s.facts;
   document.getElementById("stat-context").textContent=s.shortTermUsed;
-  // Update neural schema mini panel
-  const ss=leika.getSchemaStats();
-  const sn=document.getElementById("stat-schema-nodes");
-  const se=document.getElementById("stat-schema-edges");
-  const sa=document.getElementById("stat-schema-active");
-  if(sn)sn.textContent=ss.nodes;
-  if(se)se.textContent=ss.edges;
-  if(sa)sa.textContent=ss.active;
-  // Hot nodes
-  const hot=document.getElementById("schema-hot-nodes");
-  if(hot&&ss.top){
-    hot.innerHTML=ss.top.filter(n=>n.act>0).map(n=>`<span style="font-size:.62rem;background:rgba(124,58,237,${0.1+n.act*.4});border:1px solid rgba(124,58,237,${0.2+n.act*.5});border-radius:99px;padding:1px 7px;color:var(--text-secondary);transition:all .4s">${n.label||n.id}</span>`).join("");
-  }
 }
 
 function updateNLPPanel(){
