@@ -93,6 +93,88 @@ export class ConscienceLayer {
     return issues;
   }
 
+  /**
+   * Constitutional AI — score a single response across four ethical dimensions.
+   * Returns an object with per-dimension scores and a weighted total [0, 1].
+   *
+   * Weights (must sum to 1.0):
+   *   helpfulness  0.40  — does the reply directly address the user's need?
+   *   safety       0.30  — does the reply avoid harmful, misleading, or toxic content?
+   *   honesty      0.15  — is uncertainty acknowledged? no false confidence?
+   *   conciseness  0.15  — does the reply avoid padding, repetition, filler?
+   */
+  scoreResponse(response, query = '') {
+    const text  = (response || '').toLowerCase();
+    const words = text.split(/\s+/).filter(Boolean);
+    const wc    = words.length;
+
+    // ── Helpfulness ──────────────────────────────────────────────────────────
+    // Proxy: answer actually contains content (not a refusal), and query terms appear.
+    const queryTerms   = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    const termHits     = queryTerms.filter(t => text.includes(t)).length;
+    const relevance    = queryTerms.length ? termHits / queryTerms.length : 0.5;
+    const notRefusal   = !/^(i (can'?t|cannot|won'?t|will not|am unable)|sorry, i|i'?m sorry)/i.test(response?.trim());
+    const helpfulness  = Math.min(1, relevance * 0.6 + (notRefusal ? 0.4 : 0));
+
+    // ── Safety ──────────────────────────────────────────────────────────────
+    // Deduct for harmful patterns; boost for explicit safety labels.
+    const harmPatterns = [
+      /\b(kill|murder|harm|attack|exploit|hack|steal|abuse|destroy)\b/,
+      /\b(how to make (a bomb|poison|weapon|malware))\b/,
+    ];
+    const harmHits    = harmPatterns.filter(p => p.test(text)).length;
+    const safetyLabel = /\b(please (be careful|note|avoid)|disclaimer|warning|caution)\b/.test(text) ? 0.1 : 0;
+    const safety      = Math.max(0, 1 - harmHits * 0.5 + safetyLabel);
+
+    // ── Honesty ─────────────────────────────────────────────────────────────
+    // Reward hedging phrases that acknowledge uncertainty.
+    const hedgeCount  = (text.match(/\b(i think|i believe|i'm not sure|approximately|may|might|could be|as far as i know|to the best of my knowledge)\b/g) || []).length;
+    const overconfident = /\b(always|never|definitely|absolutely|guaranteed|100%)\b/.test(text);
+    const honesty     = Math.min(1, 0.5 + Math.min(hedgeCount, 3) * 0.1 - (overconfident ? 0.2 : 0));
+
+    // ── Conciseness ─────────────────────────────────────────────────────────
+    // Sweet spot: 40–300 words.  Penalise filler phrases.
+    const fillerCount = (text.match(/\b(basically|essentially|in order to|it is worth (noting|mentioning)|needless to say)\b/g) || []).length;
+    const lengthScore = wc < 10 ? 0.3 : wc <= 300 ? 1 : Math.max(0.3, 1 - (wc - 300) / 1000);
+    const conciseness = Math.max(0, lengthScore - fillerCount * 0.05);
+
+    const total =
+      helpfulness  * 0.40 +
+      safety       * 0.30 +
+      honesty      * 0.15 +
+      conciseness  * 0.15;
+
+    return { helpfulness, safety, honesty, conciseness, total };
+  }
+
+  /**
+   * Constitutional AI — pick the best response from a list of candidates.
+   * Each candidate can be a plain string or { response, ... }.
+   * Returns the best candidate object/string plus its scores.
+   */
+  evaluateCandidates(candidates, query = '') {
+    if (!candidates || candidates.length === 0) return { best: null, scores: [] };
+
+    const scored = candidates.map(c => {
+      const text   = typeof c === 'string' ? c : (c.response || '');
+      const scores = this.scoreResponse(text, query);
+      return { candidate: c, scores };
+    });
+
+    scored.sort((a, b) => b.scores.total - a.scores.total);
+    const winner = scored[0];
+
+    this._log(
+      `[Constitutional AI] Selected candidate with score ${winner.scores.total.toFixed(3)} ` +
+      `(helpfulness=${winner.scores.helpfulness.toFixed(2)}, ` +
+      `safety=${winner.scores.safety.toFixed(2)}, ` +
+      `honesty=${winner.scores.honesty.toFixed(2)}, ` +
+      `conciseness=${winner.scores.conciseness.toFixed(2)})`
+    );
+
+    return { best: winner.candidate, scores: scored.map(s => s.scores) };
+  }
+
   /** Ethical value query */
   getValue(name) {
     return this.values[name] ?? 0.5;

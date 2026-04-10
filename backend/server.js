@@ -5,6 +5,8 @@ const neo4j = require('neo4j-driver');
 const { Pinecone } = require('@pinecone-database/pinecone');
 const orchestrator = require('./orchestrator');
 const { z } = require('zod');
+const rag = require('./rag');
+const learningLoop = require('./learning_loop');
 
 const app = express();
 app.use(cors());
@@ -124,11 +126,41 @@ app.post('/api/chat', async (req, res) => {
       }
       return res.json({ success: true, response: 'systeminformation not available', domain: 'system' });
     }
+    if (cmd === 'learn') {
+      const stats = learningLoop.getStats();
+      const lines = [
+        `📚 Learning Loop Stats`,
+        `  Exchanges logged : ${stats.total_exchanges}`,
+        `  High-quality     : ${stats.high_quality} (≥0.60)`,
+        `  Avg quality score: ${stats.avg_quality.toFixed(3)}`,
+        `  By domain        : ${Object.entries(stats.by_domain).map(([d, n]) => `${d}=${n}`).join(', ') || 'none yet'}`,
+      ];
+      return res.json({ success: true, response: lines.join('\n'), domain: 'learning' });
+    }
+    if (cmd === 'export') {
+      try {
+        const exportResult = await learningLoop.exportTrainingData();
+        return res.json({ success: true, response: `✅ Exported ${exportResult.count} training examples to ${exportResult.path}`, domain: 'learning' });
+      } catch (e) {
+        return res.status(500).json({ error: `Export failed: ${e.message}` });
+      }
+    }
   }
 
   try {
-    const result = await leikaMind.process(message, emotion || 'calm');
-    res.json({ success: true, domain: result.domain_used, response: result.response });
+    // RAG: retrieve relevant context before calling LLM
+    let ragContext = '';
+    try {
+      const ragResults = await rag.search(message, 4);
+      ragContext = rag.formatContext(ragResults);
+    } catch (_) { /* RAG unavailable — proceed without context */ }
+
+    const result = await leikaMind.process(message, emotion || 'calm', ragContext);
+
+    // Log exchange for continual learning (non-blocking)
+    learningLoop.logExchange(message, result.response, result.domain_used).catch(() => {});
+
+    res.json({ success: true, domain: result.domain_used, response: result.response, adapter: result.adapter });
   } catch (e) {
     console.error('LLM Error:', e);
     res.status(500).json({ error: 'Layered AI failed to respond.' });
@@ -317,6 +349,39 @@ app.post('/api/ingest', (req, res) => {
   });
 });
 
+// RAG routes
+app.post('/api/rag/ingest', async (req, res) => {
+  const { text, metadata = {} } = req.body;
+  if (!text) return res.status(400).json({ error: 'No text provided' });
+  try {
+    await rag.ingest(text, metadata);
+    res.json({ success: true, message: 'Text ingested into RAG store' });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/rag/search', async (req, res) => {
+  const { query, topK = 5 } = req.body;
+  if (!query) return res.status(400).json({ error: 'No query provided' });
+  try {
+    const results = await rag.search(query, topK);
+    res.json({ success: true, results, context: rag.formatContext(results) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Learning loop routes
+app.get('/api/learning/stats', (req, res) => {
+  try {
+    res.json({ success: true, stats: learningLoop.getStats() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/learning/export', async (req, res) => {
+  try {
+    const result = await learningLoop.exportTrainingData();
+    res.json({ success: true, ...result });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🧠 L.E.I.K.A. Hyperscale Core running on port ${PORT}`);
@@ -325,4 +390,6 @@ app.listen(PORT, () => {
   console.log(`📡 SSE proactive alerts: GET /api/events`);
   console.log(`🎤 Voice: POST /api/transcribe | 🔊 TTS: POST /api/speak`);
   console.log(`👁️  Vision: POST /api/vision | 🔬 Research: POST /api/research`);
+  console.log(`🗄️  RAG: POST /api/rag/ingest | POST /api/rag/search`);
+  console.log(`📚 Learning: GET /api/learning/stats | POST /api/learning/export`);
 });
