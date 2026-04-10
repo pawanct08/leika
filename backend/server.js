@@ -249,6 +249,24 @@ app.get('/api/weather', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Web search (Tavily)
+app.get('/api/search', async (req, res) => {
+  const { q, topic } = req.query;
+  if (!q) return res.status(400).json({ error: 'No query provided' });
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) return res.json({ results: [], answer: null });
+  try {
+    const fetch = (...a) => import('node-fetch').then(({ default: f }) => f(...a));
+    const r = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey, query: q, topic: topic || 'general', max_results: 5 })
+    });
+    const data = await r.json();
+    res.json({ results: data.results || [], answer: data.answer || null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Voice transcription (Whisper)
 app.post('/api/transcribe', (req, res) => {
   if (!upload) return res.status(503).json({ error: 'multer not installed — run: npm install multer' });
@@ -388,6 +406,7 @@ app.listen(PORT, () => {
   console.log(`🔌 Neo4j: ${process.env.NEO4J_URI || 'bolt://localhost:7687'}`);
   console.log(`🔌 Pinecone vector database ready`);
   console.log(`📡 SSE proactive alerts: GET /api/events`);
+  console.log(`🔍 Search: GET /api/search | 🌤️  Weather: GET /api/weather`);
   console.log(`🎤 Voice: POST /api/transcribe | 🔊 TTS: POST /api/speak`);
   console.log(`👁️  Vision: POST /api/vision | 🔬 Research: POST /api/research`);
   console.log(`🗄️  RAG: POST /api/rag/ingest | POST /api/rag/search`);

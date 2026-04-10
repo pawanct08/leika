@@ -383,6 +383,7 @@ evtSource.addEventListener("proactive", e => {
 evtSource.onerror = () => { /* silent reconnect handled by browser */ };
 
 function showProactiveAlert(msg) {
+  appendMessage('leika', msg); // Leika speaks proactively in chat
   const bar = document.getElementById("proactive-alerts");
   if (!bar) return;
   bar.removeAttribute("hidden");
