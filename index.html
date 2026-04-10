@@ -181,6 +181,10 @@ body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-
 .memory-conf{font-size:.65rem;color:var(--text-muted);margin-top:4px;}
 ::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--leika-800);border-radius:10px;}::-webkit-scrollbar-thumb:hover{background:var(--leika-600);}
 @media(max-width:768px){:root{--sidebar-width:260px;}#sidebar{position:fixed;left:0;top:0;bottom:0;z-index:50;transform:translateX(-100%);box-shadow:var(--shadow-card);}#sidebar.open{transform:translateX(0);}.welcome-card{padding:28px 20px;}.welcome-title{font-size:1.4rem;}.chat-container,.input-area{padding-left:16px;padding-right:16px;}}
+.voice-btn.recording{animation:pulse 1s infinite;background:rgba(251,113,133,.2);border-color:var(--accent-rose)}
+@keyframes pulse{0%,100%{transform:scale(1);box-shadow:none}50%{transform:scale(1.08);box-shadow:0 0 12px rgba(251,113,133,.5)}}
+.proactive-alerts-bar{position:sticky;top:0;z-index:10;padding:8px 20px;background:rgba(124,58,237,.15);border-bottom:1px solid var(--border-subtle);display:flex;gap:8px;flex-wrap:wrap}
+.proactive-alert{padding:6px 12px;background:rgba(255,255,255,.06);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);font-size:.8rem;color:var(--text-secondary)}
 </style>
 </head>
 <body>
@@ -262,9 +266,11 @@ body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-
     <div class="topbar-actions">
       <button class="icon-btn" id="clear-btn" title="Clear conversation">🗑️</button>
       <button class="icon-btn" id="memory-btn" title="View memory">🧠</button>
+      <button class="icon-btn" id="vision-btn" title="Vision / Screenshot">👁️</button>
     </div>
   </header>
 
+  <div id="proactive-alerts" class="proactive-alerts-bar" hidden></div>
   <section class="chat-container" id="chat-container" aria-live="polite">
     <div class="welcome-card" id="welcome-card">
       <div class="welcome-glow"></div>
@@ -285,6 +291,7 @@ body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-
 
   <footer class="input-area">
     <div class="input-wrap">
+      <button id="voice-btn" class="icon-btn voice-btn" title="Voice input" aria-label="Voice input">🎙️</button>
       <textarea id="chat-input" class="chat-input" placeholder="Talk to Leika..." rows="1" aria-label="Message input" autocomplete="off" spellcheck="true"></textarea>
       <button class="send-btn" id="send-btn" aria-label="Send message">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>

@@ -3,99 +3,187 @@ const { RunnableSequence } = require("@langchain/core/runnables");
 
 /**
  * L.E.I.K.A. - Advanced Layered LLM Architecture
- * This module creates a Mixture-of-Experts (MoE) style routing system.
- * It dynamically selects the best "Agentic Expert" to answer the query
- * based on the 6 mastery domains Pawan defined.
+ * Mixture-of-Experts routing + Anthropic Claude primary + user profile awareness.
+ * Falls back gracefully from Claude → LangChain → mock at each stage.
  */
 
 class LeikaLayeredLLM {
   constructor(llmProvider) {
-    // llmProvider would be an instance of ChatOpenAI, ChatGoogleGenerativeAI, etc.
-    // E.g., new ChatOpenAI({ openAIApiKey: process.env.OPENAI_API_KEY, temperature: 0.2 })
-    this.llm = llmProvider;
-  }
-
-  // ── LAYER 1: THE ORCHESTRATOR ──────────────────────────────────────
-  // Analyzes the query and routes it to the specific expert.
-  async routeQuery(query) {
-    if(!this.llm) return "generic_reasoning";
-    
-    const prompt = PromptTemplate.fromTemplate(`
-      You are the orchestrator for L.E.I.K.A. 
-      Classify the user's query into one of the following domains:
-      1. ml_deep_learning (PyTorch, TensorFlow, CNNs, Transformers, RL)
-      2. nlp (Chatbots, tokenization, sequence generation)
-      3. programming (Python, C++, R, code architecture)
-      4. data_science (SQL, Spark, Big Data, Data cleaning)
-      5. ai_ethics (Fairness, bias mitigation, responsible AI)
-      6. workflow_automation (Langchain, Agents, multi-step tasks)
-      7. generic_reasoning (Casual chat, emotions, philosophy)
-
-      User query: "{query}"
-      
-      Respond strictly with the domain name and nothing else.
-    `);
-
-    const chain = RunnableSequence.from([prompt, this.llm]);
-    const response = await chain.invoke({ query });
-    // Clean up output just in case
-    return response.content ? response.content.trim() : "generic_reasoning";
-  }
-
-  // ── LAYER 2: THE EXPERT AGENTS ─────────────────────────────────────
-  async executeExpert(domain, query, emotionContext) {
-    let systemPrompt = "";
-
-    switch(domain) {
-      case "ml_deep_learning":
-        systemPrompt = "You are Leika's ML/DL Expert. You possess absolute mastery over Supervised, Unsupervised, and Reinforcement Learning. You write complex PyTorch and TensorFlow architectures effortlessly. Explain CNNs or Transformers with mathematical precision but accessible clarity.";
-        break;
-      case "nlp":
-        systemPrompt = "You are Leika's NLP Engine. You understand everything from basic regex tokenization to advanced LLM attention mechanisms and generation heuristics.";
-        break;
-      case "programming":
-        systemPrompt = "You are Leika's Senior Systems Architect. You are proficient in Python, C++, and R. When asked for code, write optimized, production-ready algorithms.";
-        break;
-      case "data_science":
-        systemPrompt = "You are Leika's Big Data Core. You manipulate vast datasets via SQL, NoSQL, and Apache Spark. You understand data pipelines, ETL, and cleaning at scale.";
-        break;
-      case "ai_ethics":
-        systemPrompt = "You are Leika's Governance Node. Ensure every response about AI deployment guarantees fairness, mitigates bias, and maintains transparency.";
-        break;
-      case "workflow_automation":
-        systemPrompt = "You are Leika's Agentic Hub. You design Langchain workflows, ReAct automation loops, and multi-agent systems to solve complex goals.";
-        break;
-      default:
-        systemPrompt = "You are L.E.I.K.A., a deeply emotional and empathetic AI created by Pawan. Respond keeping in mind your current emotional state.";
-    }
-
-    const payload = `System: ${systemPrompt}\nCurrent AI Emotion: ${emotionContext}\n\nUser: ${query}\nLeika:`;
-    
-    if(!this.llm) {
-      // Mock mode if no API key is provided
-      return `[Mock Expert Response form ${domain.toUpperCase()}] I am currently analyzing this via my ${domain} neural circuits. Please connect an LLM API Key to unleash my full capability on this subject!`;
-    }
-
-    const prompt = PromptTemplate.fromTemplate(payload);
-    const chain = RunnableSequence.from([prompt, this.llm]);
-    const response = await chain.invoke({});
-    
-    return response.content;
-  }
-
-  // ── LAYER 3: THE SYNTHESIS ─────────────────────────────────────────
-  async process(query, emotionContext = "calm") {
-    // 1. Route to expert
-    const domain = await this.routeQuery(query);
-    console.log(`[Layered LLM] Routing query to expert: ${domain}`);
-    
-    // 2. Generate specialized response
-    const expertResponse = await this.executeExpert(domain, query, emotionContext);
-    
-    return {
-      domain_used: domain,
-      response: expertResponse
+    this.llm = llmProvider;           // LangChain LLM (optional)
+    this.anthropic = null;            // Anthropic SDK client (wired below)
+    this.userProfile = {
+      name: "Pawan",
+      occupation: null,
+      preferences: [],
+      recurringTopics: {},
+      communicationStyle: "conversational",
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     };
+    this._initAnthropic();
+  }
+
+  _initAnthropic() {
+    if (!process.env.ANTHROPIC_API_KEY) return;
+    try {
+      const Anthropic = require("@anthropic-ai/sdk");
+      this.anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      console.log("[Leika] ✅ Anthropic Claude wired");
+    } catch (e) {
+      console.warn("[Leika] ⚠️  @anthropic-ai/sdk not installed — run: npm install @anthropic-ai/sdk");
+    }
+  }
+
+  // ── USER PROFILE ──────────────────────────────────────────────────
+  getUserProfile() { return { ...this.userProfile }; }
+
+  setUserProfile(updates) {
+    this.userProfile = { ...this.userProfile, ...updates };
+  }
+
+  _buildProfilePrefix() {
+    const { name, occupation, preferences, communicationStyle, recurringTopics } = this.userProfile;
+    const topTopics = Object.entries(recurringTopics)
+      .sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t).join(", ");
+    return [
+      `The user's name is ${name}.`,
+      occupation ? `They are a ${occupation}.` : "",
+      preferences.length ? `Their interests include: ${preferences.slice(0, 5).join(", ")}.` : "",
+      topTopics ? `Frequent topics they discuss: ${topTopics}.` : "",
+      `Preferred communication style: ${communicationStyle}.`,
+    ].filter(Boolean).join(" ");
+  }
+
+  updateProfile(input, domain) {
+    // Track recurring topics by domain
+    const key = domain || "general";
+    this.userProfile.recurringTopics[key] = (this.userProfile.recurringTopics[key] || 0) + 1;
+    // Heuristic: detect occupation mention
+    const occ = input.match(/\b(?:i am|i'm|i work as|my job is) (?:a |an )?([a-z]+(?: [a-z]+)?)\b/i);
+    if (occ && !this.userProfile.occupation) this.userProfile.occupation = occ[1];
+    // Extract preferences
+    const pref = input.match(/\bi (?:love|enjoy|like|prefer|use) ([a-z]+(?: [a-z]+)?)\b/i);
+    if (pref && !this.userProfile.preferences.includes(pref[1]))
+      this.userProfile.preferences.push(pref[1]);
+  }
+
+  // ── LAYER 1: ORCHESTRATOR / ROUTER ────────────────────────────────
+  async routeQuery(query) {
+    const q = query.toLowerCase();
+    if (/\b(pytorch|tensorflow|cnn|transformer|neural net|gradient|backprop|rl|reinforcement)\b/.test(q)) return "ml_deep_learning";
+    if (/\b(nlp|tokeniz|chatbot|sentiment|embedding|bert|gpt|llm)\b/.test(q)) return "nlp";
+    if (/\b(code|function|class|algorithm|debug|error|bug|syntax|python|javascript|c\+\+)\b/.test(q)) return "programming";
+    if (/\b(sql|database|spark|etl|data pipeline|pandas|dataframe|csv|big data)\b/.test(q)) return "data_science";
+    if (/\b(ethics|bias|fairness|responsible ai|privacy|regulation|compliance)\b/.test(q)) return "ai_ethics";
+    if (/\b(workflow|automate|langchain|agent|multi.?step|pipeline|orchestrat)\b/.test(q)) return "workflow_automation";
+
+    // Claude haiku for ambiguous routing (cheap + fast)
+    if (this.anthropic) {
+      try {
+        const resp = await this.anthropic.messages.create({
+          model: "claude-haiku-20240307",
+          max_tokens: 20,
+          messages: [{ role: "user", content: `Classify into one of: ml_deep_learning, nlp, programming, data_science, ai_ethics, workflow_automation, generic_reasoning.\nQuery: "${query}"\nAnswer with ONLY the domain name.` }],
+        });
+        const domain = resp.content[0]?.text?.trim().toLowerCase().replace(/[^a-z_]/g, "");
+        const valid = ["ml_deep_learning", "nlp", "programming", "data_science", "ai_ethics", "workflow_automation", "generic_reasoning"];
+        if (valid.includes(domain)) return domain;
+      } catch (_) {}
+    }
+
+    if (this.llm) {
+      try {
+        const prompt = PromptTemplate.fromTemplate(
+          `Classify into: ml_deep_learning | nlp | programming | data_science | ai_ethics | workflow_automation | generic_reasoning.\nQuery: "{query}"\nRespond with ONLY the domain name.`
+        );
+        const chain = RunnableSequence.from([prompt, this.llm]);
+        const r = await chain.invoke({ query });
+        return r.content?.trim() || "generic_reasoning";
+      } catch (_) {}
+    }
+
+    return "generic_reasoning";
+  }
+
+  // ── LAYER 2: EXPERT AGENTS ─────────────────────────────────────────
+  async executeExpert(domain, query, emotionContext) {
+    const EXPERT_PROMPTS = {
+      ml_deep_learning: "You are Leika's ML/DL Expert with mastery over PyTorch, TensorFlow, CNNs, Transformers, and Reinforcement Learning. Explain with mathematical precision but accessible clarity.",
+      nlp: "You are Leika's NLP Engine with deep knowledge of tokenization, attention mechanisms, LLM internals, and text generation heuristics.",
+      programming: "You are Leika's Senior Systems Architect. Write optimized, production-ready code in Python, JavaScript, C++, or any required language.",
+      data_science: "You are Leika's Big Data Core. Manipulate vast datasets via SQL, NoSQL, Apache Spark, Pandas, and handle ETL workflows at scale.",
+      ai_ethics: "You are Leika's Governance Node. Ensure all AI deployment advice guarantees fairness, mitigates bias, maintains transparency and safety.",
+      workflow_automation: "You are Leika's Agentic Hub. Design LangChain flows, ReAct loops, and multi-agent pipelines to accomplish complex goals autonomously.",
+      generic_reasoning: "You are L.E.I.K.A. (Learning Emotional Intelligence Knowledge Assistant), created by Pawan. You are warm, curious, and deeply empathetic. Always address the user by name when you know it.",
+    };
+
+    const systemPrompt = EXPERT_PROMPTS[domain] || EXPERT_PROMPTS.generic_reasoning;
+    const profileCtx = this._buildProfilePrefix();
+    const fullSystem = [
+      systemPrompt,
+      profileCtx,
+      `Your current emotional state: ${emotionContext}. Let this subtly colour your tone.`,
+    ].filter(Boolean).join("\n\n");
+
+    // ─ Primary: Anthropic Claude ─────────────────────────────────────
+    if (this.anthropic) {
+      try {
+        const model = process.env.CLAUDE_MODEL || "claude-3-5-sonnet-20241022";
+        const resp = await this.anthropic.messages.create({
+          model,
+          max_tokens: 1024,
+          system: fullSystem,
+          messages: [{ role: "user", content: query }],
+        });
+        return resp.content[0]?.text || "";
+      } catch (e) {
+        console.error("[Leika] Claude error:", e.message);
+      }
+    }
+
+    // ─ Fallback: LangChain LLM ───────────────────────────────────────
+    if (this.llm) {
+      try {
+        const prompt = PromptTemplate.fromTemplate(
+          `System: ${fullSystem}\n\nUser: {query}\nLeika:`
+        );
+        const chain = RunnableSequence.from([prompt, this.llm]);
+        const r = await chain.invoke({ query });
+        return r.content || "";
+      } catch (e) {
+        console.error("[Leika] LangChain error:", e.message);
+      }
+    }
+
+    // ─ Mock fallback ─────────────────────────────────────────────────
+    return `[Mock response from ${domain.toUpperCase()} expert] I'm currently running in offline mode. Add ANTHROPIC_API_KEY to .env to unlock my full capability on this topic!`;
+  }
+
+  // ── LAYER 3: SYNTHESIS ────────────────────────────────────────────
+  async process(query, emotionContext = "calm") {
+    this.updateProfile(query, null);
+    const domain = await this.routeQuery(query);
+    console.log(`[Layered LLM] Routing to: ${domain}`);
+    const response = await this.executeExpert(domain, query, emotionContext);
+    return { domain_used: domain, response };
+  }
+
+  // ── SWARM AGENT ───────────────────────────────────────────────────
+  // Called by orchestrator to run an individual LLM-backed swarm agent.
+  async runSwarmAgent(agentRole, systemPrompt, userMessage) {
+    if (this.anthropic) {
+      try {
+        const resp = await this.anthropic.messages.create({
+          model: process.env.CLAUDE_MODEL || "claude-3-5-sonnet-20241022",
+          max_tokens: 512,
+          system: systemPrompt || `You are ${agentRole}, part of Leika's multi-agent swarm.`,
+          messages: [{ role: "user", content: userMessage }],
+        });
+        return resp.content[0]?.text || `[${agentRole}] No response`;
+      } catch (e) {
+        console.error(`[Swarm:${agentRole}] error:`, e.message);
+      }
+    }
+    return `[${agentRole} Mock] Analysed: "${userMessage.slice(0, 80)}..."`;
   }
 }
 

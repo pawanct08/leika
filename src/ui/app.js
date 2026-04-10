@@ -20,6 +20,11 @@ const viz = new NeuralViz("neural-canvas");
   await leika.addSkill((await import("../../skills/self-reflection.js")).default);
   await leika.addSkill((await import("../../skills/code-helper.js")).default);
   await leika.addSkill((await import("../../skills/creativity.js")).default);
+  await leika.addSkill((await import("../../skills/web-search.js")).default);
+  await leika.addSkill((await import("../../skills/weather.js")).default);
+  await leika.addSkill((await import("../../skills/news.js")).default);
+  await leika.addSkill((await import("../../skills/stocks.js")).default);
+  await leika.addSkill((await import("../../skills/smart-home.js")).default);
   renderSkills();
   updateMemoryStats();
 })();
@@ -334,3 +339,128 @@ function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ─── Expose globally for debugging ───────────────────────────────
 window.leika = leika;
+// ─── Voice Input ────────────────────────────────────────────────────────
+const voiceBtn = document.getElementById("voice-btn");
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+voiceBtn?.addEventListener("click", async () => {
+  if (isRecording) {
+    mediaRecorder?.stop();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.addEventListener("dataavailable", e => audioChunks.push(e.data));
+    mediaRecorder.addEventListener("stop", async () => {
+      voiceBtn.classList.remove("recording");
+      isRecording = false;
+      const blob = new Blob(audioChunks, { type: "audio/webm" });
+      const form = new FormData();
+      form.append("audio", blob, "voice.webm");
+      try {
+        const res = await fetch("/api/transcribe", { method: "POST", body: form });
+        const { text } = await res.json();
+        if (text?.trim()) sendMessage(text.trim());
+      } catch { appendMessage("leika", "⚠️ Voice transcription failed."); }
+      stream.getTracks().forEach(t => t.stop());
+    });
+    mediaRecorder.start();
+    isRecording = true;
+    voiceBtn.classList.add("recording");
+  } catch { appendMessage("leika", "⚠️ Microphone access denied."); }
+});
+
+// ─── SSE Proactive Alerts ─────────────────────────────────────────────────
+const evtSource = new EventSource("/api/events");
+evtSource.addEventListener("proactive", e => {
+  try { showProactiveAlert(JSON.parse(e.data).message || e.data); }
+  catch { showProactiveAlert(e.data); }
+});
+evtSource.onerror = () => { /* silent reconnect handled by browser */ };
+
+function showProactiveAlert(msg) {
+  const bar = document.getElementById("proactive-alerts");
+  if (!bar) return;
+  bar.removeAttribute("hidden");
+  const chip = document.createElement("div");
+  chip.className = "proactive-alert";
+  chip.textContent = msg;
+  bar.appendChild(chip);
+  setTimeout(() => {
+    chip.remove();
+    if (!bar.children.length) bar.setAttribute("hidden", "");
+  }, 10000);
+}
+
+// ─── Vision / Screenshot ───────────────────────────────────────────────────
+document.getElementById("vision-btn")?.addEventListener("click", async () => {
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    const video = document.createElement("video");
+    video.srcObject = stream;
+    await video.play();
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    stream.getTracks().forEach(t => t.stop());
+    const base64 = canvas.toDataURL("image/png").split(",")[1];
+    appendMessage("user", "📷 Analyzing screenshot...");
+    const res = await fetch("/api/vision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: base64, prompt: "Describe what you see in this screenshot." })
+    });
+    const { description } = await res.json();
+    appendMessage("leika", `👁️ **Vision:** ${description}`);
+  } catch (err) {
+    if (err.name !== "NotAllowedError") appendMessage("leika", "⚠️ Screenshot capture failed.");
+  }
+});
+
+// ─── File Drop ─────────────────────────────────────────────────────────────
+chatContainer.addEventListener("dragover", e => {
+  e.preventDefault();
+  chatContainer.style.outline = "2px dashed var(--leika-400)";
+});
+chatContainer.addEventListener("dragleave", () => {
+  chatContainer.style.outline = "";
+});
+chatContainer.addEventListener("drop", async e => {
+  e.preventDefault();
+  chatContainer.style.outline = "";
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append("file", file);
+  appendMessage("user", `📎 Uploading: ${file.name}`);
+  try {
+    const res = await fetch("/api/ingest", { method: "POST", body: form });
+    const { message } = await res.json();
+    appendMessage("leika", message || "✅ File processed and learned.");
+  } catch { appendMessage("leika", "⚠️ File ingestion failed."); }
+});
+
+// ─── TTS Speak ─────────────────────────────────────────────────────────────
+async function callSpeak(text) {
+  try {
+    const res = await fetch("/api/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+    if (!res.ok) return;
+    const arrayBuf = await res.arrayBuffer();
+    const audioCtx = new AudioContext();
+    const decoded = await audioCtx.decodeAudioData(arrayBuf);
+    const source = audioCtx.createBufferSource();
+    source.buffer = decoded;
+    source.connect(audioCtx.destination);
+    source.start();
+  } catch { console.warn("TTS unavailable"); }
+}
+window.callSpeak = callSpeak;

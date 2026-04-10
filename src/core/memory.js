@@ -12,6 +12,7 @@ export class MemorySystem {
   constructor() {
     this.shortTerm = [];      // Last N exchanges (working memory)
     this.graph = new Map();   // Knowledge graph: concept → { relations, facts }
+    this.index = new Map();   // Inverted word → Set of concepts (fast search)
     this.db = null;
     this.maxShortTerm = 20;
     this._initDB();
@@ -19,7 +20,7 @@ export class MemorySystem {
 
   async _initDB() {
     return new Promise((resolve) => {
-      const req = indexedDB.open("leika_memory", 2);
+      const req = indexedDB.open("leika_memory", 3);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains("facts"))
@@ -28,7 +29,13 @@ export class MemorySystem {
           db.createObjectStore("conversations", { keyPath: "id", autoIncrement: true });
         if (!db.objectStoreNames.contains("skills"))
           db.createObjectStore("skills", { keyPath: "id" });
-      };
+        // v3: concept index for fast range queries
+        if (db.version >= 3) {
+          const facts = e.target.transaction.objectStore("facts");
+          if (!facts.indexNames.contains("concept"))
+            facts.createIndex("concept", "concept", { unique: false });
+        }
+      };  
       req.onsuccess = (e) => {
         this.db = e.target.result;
         this._loadGraph();
@@ -55,6 +62,9 @@ export class MemorySystem {
     }
     this.graph.get(entry.concept).facts.push(entry);
 
+    // Build inverted index for every word ≥ 3 chars
+    this._indexFact(entry.concept, entry);
+
     // Persist to IndexedDB
     if (this.db) {
       const tx = this.db.transaction("facts", "readwrite");
@@ -64,6 +74,18 @@ export class MemorySystem {
     return entry;
   }
 
+  /** Internal: add all words in concept + content to inverted index */
+  _indexFact(concept, entry) {
+    const words = (concept + " " + entry.content)
+      .toLowerCase()
+      .split(/\W+/)
+      .filter(w => w.length >= 3);
+    for (const word of words) {
+      if (!this.index.has(word)) this.index.set(word, new Set());
+      this.index.get(word).add(concept);
+    }
+  }
+
   /** Retrieve facts about a concept */
   recall(concept) {
     const node = this.graph.get(concept?.toLowerCase());
@@ -71,16 +93,43 @@ export class MemorySystem {
     return node.facts.sort((a, b) => b.confidence - a.confidence);
   }
 
-  /** Semantic-style search across all knowledge */
+  /** Fast inverted-index search across all knowledge */
   search(query) {
-    const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
-    const results = [];
+    const terms = query.toLowerCase().split(/\W+/).filter(t => t.length >= 3);
+    if (terms.length === 0) return [];
 
-    for (const [concept, node] of this.graph.entries()) {
+    // Gather candidate concepts from the inverted index
+    const candidateCounts = new Map();
+    for (const term of terms) {
+      // Exact match
+      const exactHits = this.index.get(term);
+      if (exactHits) {
+        for (const concept of exactHits) {
+          candidateCounts.set(concept, (candidateCounts.get(concept) || 0) + 2);
+        }
+      }
+      // Prefix match (handles partial words)
+      for (const [word, concepts] of this.index.entries()) {
+        if (word !== term && word.startsWith(term.slice(0, 4))) {
+          for (const concept of concepts) {
+            candidateCounts.set(concept, (candidateCounts.get(concept) || 0) + 1);
+          }
+        }
+      }
+    }
+
+    if (candidateCounts.size === 0) return [];
+
+    // Score every fact belonging to candidate concepts
+    const results = [];
+    for (const [concept, baseScore] of candidateCounts.entries()) {
+      const node = this.graph.get(concept);
+      if (!node) continue;
       for (const fact of node.facts) {
         const text = (concept + " " + fact.content).toLowerCase();
-        const score = terms.reduce((s, t) => s + (text.includes(t) ? 1 : 0), 0);
-        if (score > 0) results.push({ ...fact, concept, score });
+        const termScore = terms.reduce((s, t) => s + (text.includes(t) ? 1 : 0), 0);
+        const score = (baseScore + termScore) * (fact.confidence || 0.5);
+        results.push({ ...fact, concept, score });
       }
     }
 
@@ -123,7 +172,7 @@ export class MemorySystem {
     }
   }
 
-  /** Load stored facts back into graph on startup */
+  /** Load stored facts back into graph + rebuild inverted index on startup */
   async _loadGraph() {
     if (!this.db) return;
     const tx = this.db.transaction("facts", "readonly");
@@ -133,6 +182,7 @@ export class MemorySystem {
         const concept = fact.concept || "general";
         if (!this.graph.has(concept)) this.graph.set(concept, { facts: [], relations: new Set() });
         this.graph.get(concept).facts.push(fact);
+        this._indexFact(concept, fact);
       }
     };
   }
@@ -151,6 +201,7 @@ export class MemorySystem {
   /** Clear all memory */
   async clear() {
     this.graph.clear();
+    this.index.clear();
     this.shortTerm = [];
     if (this.db) {
       ["facts", "conversations"].forEach(store => {
